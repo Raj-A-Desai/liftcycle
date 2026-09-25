@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import type { LiftCycleState, Exercise, Workout, Cycle, PlanItem, LoggedExercise } from './types'
 import { supabase } from './supabase'
+import { splitForCalendarDate } from './schedule'
 
 const LOCAL_KEY = 'liftcycle-state-v3'
 const DIRTY_KEY = `${LOCAL_KEY}:unsynced`
@@ -334,12 +335,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
   function scheduledSplitForDate(date: string) {
     const cycle = cycleForDate(date)
     if (!cycle) return null
-    const start = new Date(cycle.startDate + 'T12:00:00')
-    const d = new Date(date + 'T12:00:00')
-    const diff = Math.floor((d.getTime() - start.getTime()) / 86400000)
-    if (diff < 0 || diff >= cycle.weeks * 7) return null
-    // Plan days are stored Sunday–Saturday, not relative to the cycle start date.
-    const splitId = cycle.days[d.getDay()]
+    const splitId = splitForCalendarDate(cycle, date)
     if (!splitId) return null
     return cycle.splits.find(s => s.id === splitId) ?? null
   }
