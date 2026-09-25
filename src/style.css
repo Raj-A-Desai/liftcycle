@@ -9,3 +9,45 @@
 .cloud-card .auth-row {flex-wrap:wrap; justify-content:flex-end}
 .error-note {padding:8px 0; font-size:13px}
 @media(max-width:620px) {.cloud-card .auth-row {justify-content:stretch}.cloud-card .auth-row button {flex:1}}
+
+/* LiftCycle 0.2 — dark editorial training dashboard */
+:root{--ink:#100f17;--indigo:#1c1a2a;--indigo2:#282439;--line:#38334b;--orange:#ff985b;--orange2:#ffb078;--tea:#b8e5c4;--danger:#ff929a;--muted:#a8a4b5}
+body{background:radial-gradient(ellipse 90% 50% at 48% -18%,#41304d 0,transparent 72%),#100f17}
+.app-shell{max-width:1260px}
+.brand{font-size:31px;letter-spacing:-1.7px}.brand span{color:#ffad7c}.tagline{letter-spacing:.015em}
+.tabs{background:#201c2ba8;border-color:#494054;box-shadow:0 12px 32px #0003}
+.tabs button.active{background:#f0e9e3;color:#221b24;box-shadow:0 6px 18px #0002}
+.primary{background:linear-gradient(105deg,#ffb879,#ff9358);color:#25191c;border:1px solid #ffd7a8;box-shadow:0 8px 24px #f8904d18}
+.primary:hover{background:#ffbd89}
+.eyebrow{color:#ffb889;letter-spacing:.16em}
+.section-head h1{font-size:clamp(32px,4.4vw,54px);line-height:1.08;letter-spacing:-.055em}
+.progress-hero{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:28px 0 32px}
+.metric-card{position:relative;overflow:hidden;border-radius:24px;min-height:260px;padding:25px 28px;display:flex;flex-direction:column;background:#241f31;border:1px solid #473c52;box-shadow:0 18px 48px #08070c3b}
+.metric-card:after{content:"";position:absolute;pointer-events:none;width:250px;height:250px;right:-115px;top:-140px;border:1px solid #ffffff28;border-radius:50%;box-shadow:0 0 0 35px #ffffff06,0 0 0 75px #ffffff05}
+.muscle-metric{background:linear-gradient(130deg,#35263a,#241d2c 66%)}
+.consistency-metric{background:linear-gradient(135deg,#233931,#202832 68%)}
+.metric-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:22px}
+.metric-icon{display:flex;align-items:center;justify-content:center;width:39px;height:39px;border:1px solid #ffffff45;border-radius:14px;color:#ffcbab;font-size:27px}
+.consistency-metric .metric-icon{color:#b7e5ca}
+.metric-tag{font-size:10px;letter-spacing:.16em;font-weight:800;color:#dac8d3}
+.metric-label{font-size:15px;color:#ded0d8;font-weight:650}
+.metric-number{font-size:clamp(42px,6vw,70px);line-height:1.08;font-weight:830;letter-spacing:-.065em;font-variant-numeric:tabular-nums;margin-top:5px;color:#fff5ed}
+.metric-number span{font-size:21px;font-weight:550;letter-spacing:-.02em;color:#c9bbc5}
+.metric-description{color:#c5b9c4;font-size:13px;margin-top:12px;max-width:320px;line-height:1.6}
+.metric-track,.muscle-track{background:#ffffff25;border-radius:999px;overflow:hidden;height:7px;margin-top:auto}
+.metric-track{margin-top:26px}.metric-track>div{height:100%;border-radius:inherit;background:linear-gradient(90deg,#f6af7c,#ffe2b7);transition:width .3s}
+.goal-setting{margin-top:auto;padding-top:14px}.goal-setting label{display:flex;flex-direction:row;align-items:center;justify-content:space-between;gap:14px;color:#d8e2da;font-size:12px}.goal-setting select{max-width:160px;background:#14241ecc;border-color:#476052;padding:8px 10px}
+.volume-head{display:flex;align-items:end;justify-content:space-between;gap:18px;margin-bottom:18px}.volume-head h2{font-size:29px;letter-spacing:-.045em;margin:3px 0 4px}.volume-head p{color:#aaa5b7;font-size:13px;margin:0}.target-caption{font-size:12px;color:#f6c6a9;padding:9px 13px;background:#3b2b37;border:1px solid #654653;border-radius:999px;white-space:nowrap}
+.muscle-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.muscle-card{background:linear-gradient(145deg,#211e2e,#1a1824);border:1px solid #343044;border-radius:18px;padding:18px;min-width:0;transition:transform .17s,border-color .17s}
+.muscle-card:hover{transform:translateY(-2px);border-color:#655166}
+.muscle-card.hit{border-color:#526f61;background:linear-gradient(145deg,#25362f,#1c2525)}
+.muscle-card-top{display:flex;align-items:center;justify-content:space-between;gap:8px}.muscle-card-top strong{font-weight:750;font-size:14px}.target-status{font-size:10px;color:#e9bda3;font-weight:750;white-space:nowrap}.muscle-card.hit .target-status{color:#a9e5be}
+.muscle-numbers{display:flex;align-items:baseline;gap:6px;margin:18px 0 11px}.muscle-numbers>span{font-size:36px;font-weight:850;letter-spacing:-.07em;line-height:1}.muscle-numbers small{font-size:12px;color:#a4a0b1}
+.muscle-track{height:6px;background:#51465266;margin:0 0 15px}.muscle-track>div{background:linear-gradient(90deg,#d66f62,#ffbf86);border-radius:999px;height:100%;transition:width .3s}.muscle-card.hit .muscle-track>div{background:linear-gradient(90deg,#68ae87,#b6ecc1)}
+.muscle-card-footer{border-top:1px solid #ffffff15;padding-top:11px;display:flex;align-items:center;justify-content:space-between;gap:6px;font-size:11px;color:#9994a7}.muscle-card-footer label{display:flex;flex-direction:row;align-items:center;gap:6px;color:#c7bbcc;font-size:11px}.muscle-card-footer input{width:62px;padding:6px;font-size:11px;text-align:center;border-radius:8px}
+.safety-banner{background:#213329;border:1px solid #507456;border-radius:14px;padding:13px 17px;margin-bottom:18px;display:flex;flex-direction:column;gap:5px;color:#c3e4c8;font-size:13px;line-height:1.5}.safety-banner strong{color:#e5f7e5;font-size:14px}
+.plan-controls{grid-template-columns:repeat(2,minmax(0,1fr))}.plan-controls label:last-child{grid-column:1/-1}
+.session-variation{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}.session-variation label{min-width:0}.session-variation input{font-size:12px;padding:8px}
+@media(max-width:850px){.muscle-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.metric-card{padding:22px;min-height:248px}}
+@media(max-width:620px){.app-shell{padding:15px 13px 36px}.progress-hero{grid-template-columns:1fr;gap:12px}.metric-card{min-height:210px;padding:20px}.metric-top{margin-bottom:10px}.metric-number{font-size:54px}.volume-head{align-items:flex-start;flex-direction:column}.muscle-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.muscle-card{padding:12px;border-radius:15px}.muscle-card-top{flex-direction:column;align-items:flex-start;gap:5px}.muscle-numbers>span{font-size:31px}.muscle-card-footer{flex-direction:column;align-items:flex-start}.session-variation{grid-template-columns:1fr}.goal-setting{margin-top:14px}}
