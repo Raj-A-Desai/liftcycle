@@ -4,6 +4,7 @@ import { useLiftStore } from './store'
 import { cloudConfigured } from './supabase'
 import type { Exercise, PlanItem } from './types'
 import { MUSCLE_GROUPS, consistencyStats, muscleRows } from './metrics'
+import { actualExerciseSummary } from './workoutSummary'
 
 const store = useLiftStore()
 const tab = ref<'schedule'|'cycle'|'exercises'|'history'|'progress'>('schedule')
@@ -175,7 +176,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
         <div class="cycle-banner"><span>{{ activeCycleLabel }}</span><button class="text-btn" @click="tab='cycle'">Edit cycle</button></div>
 
         <div class="week-grid">
-          <article v-for="d in weekDates()" :key="iso(d)" class="day-card" :class="{today:iso(d)===new Date().toISOString().slice(0,10)}">
+          <article v-for="d in weekDates()" :key="iso(d)" class="day-card" :class="{today:iso(d)===new Date().toISOString().slice(0,10)}" @click="selectedDate=iso(d)">
             <div class="day-label">{{ fmtDay(d) }}</div>
             <div class="scheduled">{{ scheduledName(iso(d)) }}</div>
             <template v-if="workoutForDate(iso(d))">
@@ -188,6 +189,14 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
             <div v-else class="rest">Rest</div>
           </article>
         </div>
+
+        <section v-if="workoutForDate(selectedDate)" class="panel" style="margin-top: 1rem">
+          <div class="panel-head"><div><h2>{{ workoutForDate(selectedDate)!.name }} · {{ selectedDate }}</h2><p>Actual logged working sets, not plan targets. Warmups are excluded.</p></div><button class="ghost" @click="store.editWorkout(workoutForDate(selectedDate)!.id); tab='history'">Edit workout</button></div>
+          <div v-for="ex in workoutForDate(selectedDate)!.exercises" :key="ex.id" class="plan-item">
+            <div><strong>{{ ex.name }}</strong><small>{{ ex.equipment }}{{ ex.loadBasis==='per-hand' ? ' · per hand' : '' }}</small></div>
+            <div style="text-align:right"><strong>{{ actualExerciseSummary(ex, workoutForDate(selectedDate)!.unit).work }}</strong><small>{{ actualExerciseSummary(ex, workoutForDate(selectedDate)!.unit).note }}</small></div>
+          </div>
+        </section>
 
         <div class="quick-log">
           <input v-model="selectedDate" type="date" />
