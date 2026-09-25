@@ -3,6 +3,7 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { useLiftStore } from './store'
 import { cloudConfigured } from './supabase'
 import type { Exercise, PlanItem } from './types'
+import { MUSCLE_GROUPS, consistencyStats, muscleRows } from './metrics'
 
 const store = useLiftStore()
 const tab = ref<'schedule'|'cycle'|'exercises'|'history'|'progress'>('schedule')
@@ -16,7 +17,8 @@ const weekAnchor = ref(new Date())
 const selectedDate = ref(`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`)
 const importInput = ref<HTMLInputElement | null>(null)
 
-const muscles = ['Chest','Back','Lats','Traps','Front delts','Side delts','Rear delts','Biceps','Triceps','Forearms','Abs','Quads','Hamstrings','Glutes','Calves','Adductors']
+const muscles = [...MUSCLE_GROUPS]
+const equipmentOptions = ['Dumbbells','Barbell','Kettlebell','Cable','Machine','Bodyweight','Resistance band','EZ bar','Smith machine','Other']
 
 const exerciseForm = reactive({
   name: '', equipment: '', variation: '', loadMode: 'external' as Exercise['loadMode'], loadBasis: 'total' as Exercise['loadBasis'],
@@ -75,7 +77,7 @@ function addSet(exIndex: number) {
 function addExerciseToDraft(exerciseId: string) {
   const draft = store.state.draft; const ex = store.state.library.find(e => e.id === exerciseId); if (!draft || !ex) return
   if (draft.exercises.some(e => e.exerciseId === exerciseId)) return
-  const sug = store.suggestion(ex.id)
+  const sug = store.suggestion(ex.id, ex.equipment)
   draft.exercises.push({
     id: crypto.randomUUID(), exerciseId: ex.id, name: ex.name, equipment: ex.equipment, variation: ex.variation,
     loadMode: ex.loadMode, loadBasis: ex.loadBasis, unilateral: ex.unilateral, credits: JSON.parse(JSON.stringify(ex.credits)),
@@ -99,8 +101,17 @@ async function importJson(ev: Event) {
   ;(ev.target as HTMLInputElement).value = ''
 }
 
-const progressRows = computed(() => Object.entries(store.muscleTotalsForWeek(weekAnchor.value)).sort((a,b) => (b[1].direct+b[1].partial)-(a[1].direct+a[1].partial)))
-const hardSets = computed(() => progressRows.value.reduce((n,[,v]) => n+v.direct+v.partial,0))
+const progressRows = computed(() => muscleRows(store.state, weekAnchor.value))
+const atTarget = computed(() => progressRows.value.filter(r => r.total >= r.target).length)
+const consistency = computed(() => consistencyStats(store.state.history, new Date(), store.state.settings?.weeklyWorkoutGoal ?? 3))
+function setMuscleTarget(muscle: string, value: number) {
+  store.state.settings ??= { weeklyWorkoutGoal: 3, defaultMuscleTarget: 3, muscleTargets: {} }
+  store.state.settings.muscleTargets[muscle] = Math.max(0.25, value || 3)
+}
+function updateGoal(value: number) {
+  store.state.settings ??= { weeklyWorkoutGoal: 3, defaultMuscleTarget: 3, muscleTargets: {} }
+  store.state.settings.weeklyWorkoutGoal = Math.max(1, Math.min(7, Math.round(value || 3)))
+}
 async function signOut() { try { await store.signOut() } catch (e:any) { toastError.value=e?.message ?? 'Could not sign out.' } }
 
 const activeCycleLabel = computed(() => store.activeCycle ? `${store.activeCycle.name} · ${store.activeCycle.weeks} weeks` : 'No active cycle')
@@ -190,8 +201,9 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
       <section v-else-if="tab==='cycle'" class="page">
         <div class="section-head">
           <div><div class="eyebrow">BUILD YOUR PLAN</div><h1>{{ store.state.plan.name }}</h1><p>Choose your days and exercises, then apply your cycle. Incomplete Pull or Legs days are allowed.</p></div>
-          <div class="head-actions"><button v-if="store.activeCycle" class="ghost" @click="store.updateActiveCycle()">Update active cycle</button><button class="primary" @click="store.applyCycle()">Apply new cycle</button></div>
+          <div class="head-actions"><button v-if="store.activeCycle" class="ghost" @click="store.updateActiveCycle()">Publish future update</button><button class="primary" @click="store.applyCycle()">Apply new cycle</button></div>
         </div>
+        <div class="safety-banner"><strong>Future-only updates</strong><span>Publish a new plan version for upcoming sessions. Previous versions and logged workouts stay unchanged.</span></div>
         <div class="settings-row">
           <label>Start date <input v-model="store.state.plan.startDate" type="date" /></label>
           <label>Weeks <input v-model.number="store.state.plan.weeks" type="number" min="1" max="20" /></label>
@@ -205,8 +217,8 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
             <div class="panel-head"><div><h2>{{ split.name }}</h2><span>{{ split.items.length }} exercises</span></div></div>
             <div v-if="!split.items.length" class="empty-small">No movements yet. You can still apply this cycle and fill this day later.</div>
             <div v-for="item in split.items" :key="item.id" class="plan-item">
-              <div><strong>{{ cycleItemExercise(item)?.name }}</strong><small>{{ cycleItemExercise(item)?.variation || cycleItemExercise(item)?.equipment }}</small></div>
-              <div class="plan-controls"><label>sets<input v-model.number="item.sets" type="number" min="1" /></label><label>reps<input v-model.number="item.reps" type="number" min="1" /></label></div>
+              <div><strong>{{ cycleItemExercise(item)?.name }}</strong><small>{{ item.equipment || cycleItemExercise(item)?.equipment || 'Choose equipment while logging' }}</small></div>
+              <div class="plan-controls"><label>sets<input v-model.number="item.sets" type="number" min="1" /></label><label>reps<input v-model.number="item.reps" type="number" min="1" /></label><label>Equipment (optional)<select v-model="item.equipment"><option value="">Choose while logging</option><option v-for="eq in equipmentOptions" :key="eq" :value="eq">{{ eq }}</option></select></label></div>
             </div>
             <select class="full-select" @change="store.addPlanItem(split.id, ($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value=''">
               <option value="">+ Add exercise</option><option v-for="e in store.state.library.filter(e=>!split.items.some(i=>i.exerciseId===e.id))" :key="e.id" :value="e.id">{{ e.name }}</option>
@@ -218,7 +230,8 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
       <section v-else-if="tab==='exercises'" class="page">
         <div class="section-head"><div><div class="eyebrow">YOUR MOVEMENT LIBRARY</div><h1>Exercises</h1><p>Define how each exercise contributes to muscle-group volume. Sets, reps and load belong in the workout log—not here.</p></div><button class="primary" @click="resetExerciseForm(); showExerciseForm=true">Create exercise</button></div>
         <div v-if="showExerciseForm" class="panel form-panel">
-          <div class="form-grid"><label>Name<input v-model="exerciseForm.name" /></label><label>Equipment<input v-model="exerciseForm.equipment" placeholder="Dumbbells, barbell…" /></label><label>Variation<input v-model="exerciseForm.variation" placeholder="Flat bench, neutral grip…" /></label><label>Rep range<div class="inline"><input v-model.number="exerciseForm.repMin" type="number" min="1" /><span>–</span><input v-model.number="exerciseForm.repMax" type="number" min="1" /></div></label><label>Load mode<select v-model="exerciseForm.loadMode"><option value="external">External load</option><option value="bodyweight">Bodyweight</option><option value="weighted">Weighted bodyweight</option></select></label><label>Load basis<select v-model="exerciseForm.loadBasis"><option value="total">Total</option><option value="per-hand">Per hand</option></select></label></div>
+          <div class="form-grid"><label>Name<input v-model="exerciseForm.name" /></label><label>Preferred equipment (optional)<input v-model="exerciseForm.equipment" placeholder="Choose while logging" list="equipment-list" /></label><label>Variation<input v-model="exerciseForm.variation" placeholder="Flat bench, neutral grip…" /></label><label>Rep range<div class="inline"><input v-model.number="exerciseForm.repMin" type="number" min="1" /><span>–</span><input v-model.number="exerciseForm.repMax" type="number" min="1" /></div></label><label>Load mode<select v-model="exerciseForm.loadMode"><option value="external">External load</option><option value="bodyweight">Bodyweight</option><option value="weighted">Weighted bodyweight</option></select></label><label>Load basis<select v-model="exerciseForm.loadBasis"><option value="total">Total</option><option value="per-hand">Per hand</option></select></label></div>
+          <datalist id="equipment-list"><option v-for="eq in equipmentOptions" :key="eq" :value="eq" /></datalist>
           <h3>Muscle set credits</h3><p class="muted">Use 1.0 for a direct set, 0.5 or 0.25 for partial contribution.</p>
           <div class="credit-grid"><label v-for="m in muscles" :key="m"><span>{{ m }}</span><select :value="exerciseForm.credits[m]||0" @change="setCredit(m, Number(($event.target as HTMLSelectElement).value))"><option :value="0">—</option><option :value="1">1.0</option><option :value="0.75">0.75</option><option :value="0.5">0.5</option><option :value="0.25">0.25</option></select></label></div>
           <label>Notes<textarea v-model="exerciseForm.notes" rows="2"></textarea></label>
@@ -245,8 +258,32 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
 
       <section v-else class="page">
         <div class="section-head"><div><div class="eyebrow">WEEKLY MUSCLE SETS</div><h1>Progress</h1><p>Warmups are excluded. Direct and partial set credits are tracked separately.</p></div><div class="head-actions"><button class="ghost" @click="moveWeek(-1)">←</button><button class="ghost" @click="weekAnchor=new Date()">This week</button><button class="ghost" @click="moveWeek(1)">→</button></div></div>
-        <div class="stat-card"><span>Credited hard sets</span><strong>{{ hardSets.toFixed(2) }}</strong></div>
-        <div class="progress-table"><div class="progress-row header"><span>Muscle</span><span>Direct</span><span>Partial</span><span>Total</span></div><div v-for="([m,v]) in progressRows" :key="m" class="progress-row"><strong>{{ m }}</strong><span>{{ v.direct.toFixed(2) }}</span><span>{{ v.partial.toFixed(2) }}</span><span>{{ (v.direct+v.partial).toFixed(2) }}</span></div><div v-if="!progressRows.length" class="empty">No completed work sets in this week.</div></div>
+        <div class="progress-hero">
+          <article class="metric-card muscle-metric">
+            <div class="metric-top"><span class="metric-icon">◎</span><span class="metric-tag">WEEKLY PROGRESS</span></div>
+            <div class="metric-label">Muscles at target</div>
+            <div class="metric-number">{{ atTarget }}<span> / {{ progressRows.length }}</span></div>
+            <div class="metric-description">Your muscles with at least their planned weekly sets.</div>
+            <div class="metric-track"><div :style="{width: progressRows.length ? Math.min(100,atTarget/progressRows.length*100)+'%' : '0%'}"></div></div>
+          </article>
+          <article class="metric-card consistency-metric">
+            <div class="metric-top"><span class="metric-icon">↗</span><span class="metric-tag">LAST FOUR WEEKS</span></div>
+            <div class="metric-label">Workout consistency</div>
+            <div class="metric-number">{{ consistency.average.toFixed(1) }}<span> / week</span></div>
+            <div class="metric-description">{{ consistency.goalWeeks }} / {{ consistency.completedWeeks }} completed weeks met your workout goal.</div>
+            <div class="goal-setting"><label>Weekly goal<select :value="store.state.settings?.weeklyWorkoutGoal ?? 3" @change="updateGoal(Number(($event.target as HTMLSelectElement).value))"><option v-for="n in 7" :key="n" :value="n">{{ n }} {{ n===1?'workout':'workouts' }}</option></select></label></div>
+          </article>
+        </div>
+        <div class="volume-head"><div><div class="eyebrow">WEEKLY VOLUME</div><h2>Muscle targets</h2><p>Direct + partial credits count; warmup sets are excluded.</p></div><span class="target-caption">Default {{ store.state.settings?.defaultMuscleTarget ?? 3 }} sets / week</span></div>
+        <div class="muscle-grid">
+          <article v-for="row in progressRows" :key="row.muscle" class="muscle-card" :class="{hit:row.total>=row.target}">
+            <div class="muscle-card-top"><strong>{{ row.muscle }}</strong><span class="target-status">{{ row.total>=row.target ? '✓ Target met' : Number((row.target-row.total).toFixed(2))+' to go' }}</span></div>
+            <div class="muscle-numbers"><span>{{ Number(row.total.toFixed(2)) }}</span><small>/ {{ row.target }} sets</small></div>
+            <div class="muscle-track"><div :style="{width: Math.min(100,row.target ? row.total/row.target*100 : 100)+'%'}"></div></div>
+            <div class="muscle-card-footer"><span>{{ Number(row.direct.toFixed(2)) }} direct · {{ Number(row.partial.toFixed(2)) }} partial</span><label>Goal<input type="number" min="0.25" max="30" step="0.25" :value="row.target" @change="setMuscleTarget(row.muscle,Number(($event.target as HTMLInputElement).value))" /></label></div>
+          </article>
+          <div v-if="!progressRows.length" class="empty">Create exercises with muscle credits to set your weekly targets.</div>
+        </div>
       </section>
     </main>
 
@@ -254,7 +291,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
       <div class="drawer-card">
         <div class="drawer-head"><div><div class="eyebrow">LOG WORKOUT</div><input class="workout-title" v-model="store.state.draft.name" /><input v-model="store.state.draft.date" type="date" /></div><button class="ghost" @click="store.state.draft=null">Close</button></div>
         <article v-for="(ex,ei) in store.state.draft.exercises" :key="ex.id" class="log-exercise">
-          <div class="log-ex-head"><div><h3>{{ ex.name }}</h3><small>{{ [ex.equipment,ex.variation].filter(Boolean).join(' · ') }}</small></div><span v-if="store.suggestion(ex.exerciseId)" class="suggestion">{{ store.suggestion(ex.exerciseId)?.label }}</span></div>
+          <div class="log-ex-head"><div><h3>{{ ex.name }}</h3><div class="session-variation"><label>Equipment<input v-model="ex.equipment" list="equipment-list" placeholder="Choose equipment" /></label><label>Variation<input v-model="ex.variation" placeholder="Grip, bench angle…" /></label></div></div><span v-if="store.suggestion(ex.exerciseId, ex.equipment)" class="suggestion">{{ store.suggestion(ex.exerciseId, ex.equipment)?.label }}</span></div>
           <div class="set-head"><span>#</span><span>Weight</span><span>Reps</span><span>RIR</span><span>Warmup</span><span>Done</span></div>
           <div v-for="(s,si) in ex.sets" :key="s.id" class="set-row" :class="{done:s.done}"><span>{{ si+1 }}</span><input v-model.number="s.weight" type="number" step="0.5" /><input v-model.number="s.reps" type="number" min="0" /><input :value="s.rir ?? ''" @input="s.rir = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" type="number" min="0" max="5" step="0.5" placeholder="—" :disabled="s.warmup" /><input v-model="s.warmup" type="checkbox" @change="s.warmup && (s.rir=null)" /><input v-model="s.done" type="checkbox" /></div>
           <button class="text-btn" @click="addSet(ei)">+ Add set</button>
