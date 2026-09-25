@@ -57,3 +57,11 @@ In the Vercel `homebase` project, connect `Raj-A-Desai/liftcycle`, use productio
 Sign in before importing the private schema-v3 JSON backup. Verify the **Synced** indicator and the imported history on a second device. Never commit exported workouts, Supabase secret/service-role keys, or other personal data. The original ChatGPT Site is a separate deployment and is not updated by GitHub commits.
 
 If Vercel reports a deployment failure, inspect **Homebase > Deployments > failed deployment > Build Logs**; if this assistant cannot see the project despite connection, reconnect the Vercel app with explicit access to the `radesai's projects` team and `homebase` project.
+
+## Cloud sign-in on Homebase
+
+The client initializes the dedicated LiftCycle Supabase project with its **public publishable key** even if Vercel does not expose Vite environment variables at build time. `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` may override the defaults. Never put the service-role key or a secret key in the frontend.
+
+The GitHub workflow builds the Vite app and verifies the production bundle includes the Supabase project and sign-in panel. GitHub deployment checks show when Vercel has successfully built a commit; each `homebase-<hash>-...` deployment URL is immutable, so after updating the code open the **new** deployment or your stable Homebase production domain, not a previous deployment URL.
+
+In the Supabase dashboard, under **Authentication → URL Configuration**, set **Site URL** to the stable Homebase production domain and add the same URL under **Redirect URLs**. Add exact preview deployment URLs individually when testing previews. Log in from Homebase, import the existing LiftCycle JSON from your browser, wait for **Synced**, then sign in with the same email on a second device and verify your training history is present.
