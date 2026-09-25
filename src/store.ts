@@ -338,7 +338,8 @@ export const useLiftStore = defineStore('liftcycle', () => {
     const d = new Date(date + 'T12:00:00')
     const diff = Math.floor((d.getTime() - start.getTime()) / 86400000)
     if (diff < 0 || diff >= cycle.weeks * 7) return null
-    const splitId = cycle.days[((diff % 7) + 7) % 7]
+    // Plan days are stored Sunday–Saturday, not relative to the cycle start date.
+    const splitId = cycle.days[d.getDay()]
     if (!splitId) return null
     return cycle.splits.find(s => s.id === splitId) ?? null
   }
