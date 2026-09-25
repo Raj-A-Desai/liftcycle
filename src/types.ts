@@ -18,10 +18,10 @@ export interface Exercise {
 }
 
 // Planned sets and reps are targets. RIR is recorded only when a set is performed.
-export interface PlanItem { id: string; exerciseId: string; sets: number; reps: number; load: number }
+export interface PlanItem { id: string; exerciseId: string; sets: number; reps: number; load: number; equipment?: string }
 export interface Split { id: string; name: string; items: PlanItem[] }
 export interface Plan { name: string; startDate: string; weeks: number; days: string[]; splits: Split[] }
-export interface Cycle extends Plan { id: string; appliedAt: string }
+export interface Cycle extends Plan { id: string; appliedAt: string; effectiveFrom?: string; previousCycleId?: string }
 export interface LoggedSet { id: string; weight: number; reps: number; rir: number | null; warmup: boolean; done: boolean }
 export interface LoggedExercise {
   id: string
@@ -55,4 +55,5 @@ export interface LiftCycleState {
   activeCycleId: string | null
   history: Workout[]
   draft: Workout | null
+  settings?: { weeklyWorkoutGoal: number; defaultMuscleTarget: number; muscleTargets: Record<string, number> }
 }
