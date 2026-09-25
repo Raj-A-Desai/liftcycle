@@ -159,6 +159,8 @@ export const useLiftStore = defineStore('liftcycle', () => {
     await pushCloud()
   }
 
+  function hasSyncConflict() { return syncStatus.value === 'conflict' }
+
   async function pushCloud() {
     if (!supabase || !userId.value || !cloudReady || syncStatus.value === 'conflict') return
     if (!navigator.onLine) { syncStatus.value = 'offline'; return }
@@ -199,7 +201,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
       syncStatus.value = navigator.onLine ? 'error' : 'offline'
     } finally {
       pushing = false
-      if (pushRequested && syncStatus.value !== 'conflict') {
+      if (pushRequested && !hasSyncConflict()) {
         pushRequested = false
         window.clearTimeout(syncTimer)
         syncTimer = window.setTimeout(() => void pushCloud(), 400)
@@ -249,9 +251,10 @@ export const useLiftStore = defineStore('liftcycle', () => {
 
   function subscribeRealtime() {
     unsubscribeRealtime?.(); unsubscribeRealtime = null
-    if (!supabase || !userId.value) return
+    const client = supabase
+    if (!client || !userId.value) return
     const owner = userId.value
-    const channel = supabase.channel(`liftcycle:${owner}`)
+    const channel = client.channel(`liftcycle:${owner}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'user_app_state', filter: `user_id=eq.${owner}` }, payload => {
         if (owner !== userId.value || pushing) return
         const record = payload.new as { updated_at?: string; state?: LiftCycleState }
@@ -259,7 +262,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
         if (localStorage.getItem(DIRTY_KEY)) { showConflict(); return }
         applyCloud(record.state, record.updated_at)
       }).subscribe()
-    unsubscribeRealtime = () => { void supabase.removeChannel(channel) }
+    unsubscribeRealtime = () => { void client.removeChannel(channel) }
   }
 
   watch(state, () => {
