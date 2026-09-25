@@ -48,8 +48,12 @@ a confirmed sign-in and deployed site.
 - Planned workouts can specify optional equipment. Each logged workout can choose equipment/variation independently, while the exercise identity and muscle-credit rules are shared. Progressive overload reads the most recent matching equipment history.
 - Updating or applying a cycle while another is active publishes a new version. Earlier schedule versions and logged workouts stay intact.
 
-## Current deployment checklist
+## Homebase deployment
 
-The GitHub repository is the source of truth. The older ChatGPT Site is a separate artifact and is not automatically replaced by GitHub commits. If Vercel's existing `homebase` integration builds from this repository, configure a **separate LiftCycle Vite project** in the correct account/team, importing `Raj-A-Desai/liftcycle` with root directory `.`, build `npm run build`, and output `dist`.
+**Homebase** is the Vercel project that hosts the **LiftCycle** application. We intentionally retain the existing `Raj-A-Desai/liftcycle` GitHub repository and the dedicated `liftcycle` Supabase project; they do not need renaming. Do not create a second Vercel project for LiftCycle.
 
-For magic-link sign-in, set your Vercel production URL in Supabase Authentication > URL Configuration as both Site URL and redirect URL (also allow preview URLs if used). Sign in, use **Import JSON** on the private exported LiftCycle backup, and verify the sync indicator before opening LiftCycle on a second device. Never commit the private workout JSON or a Supabase service-role key.
+In the Vercel `homebase` project, connect `Raj-A-Desai/liftcycle`, use production branch `main`, root directory `.`, and the Vite settings in `vercel.json` (`npm run build`, output `dist`). For magic-link sign-in, set Homebase's production URL in Supabase Authentication > URL Configuration as the Site URL and an allowed redirect URL (add preview domains when testing those).
+
+Sign in before importing the private schema-v3 JSON backup. Verify the **Synced** indicator and the imported history on a second device. Never commit exported workouts, Supabase secret/service-role keys, or other personal data. The original ChatGPT Site is a separate deployment and is not updated by GitHub commits.
+
+If Vercel reports a deployment failure, inspect **Homebase > Deployments > failed deployment > Build Logs**; if this assistant cannot see the project despite connection, reconnect the Vercel app with explicit access to the `radesai's projects` team and `homebase` project.
