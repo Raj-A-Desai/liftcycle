@@ -307,16 +307,29 @@ export const useLiftStore = defineStore('liftcycle', () => {
   }
 
   function applyCycle() {
-    const cycle: Cycle = { ...deepCopy(state.value.plan), id: uuid(), appliedAt: new Date().toISOString() }
+    const today = new Date()
+    const localToday = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+    const previous = activeCycle.value
+    const cycle: Cycle = {
+      ...deepCopy(state.value.plan),
+      id: uuid(),
+      appliedAt: new Date().toISOString(),
+      ...(previous ? { previousCycleId: previous.id, effectiveFrom: state.value.plan.startDate > localToday ? state.value.plan.startDate : localToday } : {})
+    }
     state.value.cycles.push(cycle)
     state.value.activeCycleId = cycle.id
   }
 
-  function scheduledSplitForDate(date: string) {
-    let cycle = activeCycle.value
+  function cycleForDate(date: string): Cycle | null {
+    let cycle: Cycle | null = activeCycle.value
     while (cycle?.previousCycleId && date < (cycle.effectiveFrom || cycle.startDate)) {
       cycle = state.value.cycles.find(c => c.id === cycle!.previousCycleId) ?? null
     }
+    return cycle
+  }
+
+  function scheduledSplitForDate(date: string) {
+    const cycle = cycleForDate(date)
     if (!cycle) return null
     const start = new Date(cycle.startDate + 'T12:00:00')
     const d = new Date(date + 'T12:00:00')
@@ -351,12 +364,13 @@ export const useLiftStore = defineStore('liftcycle', () => {
 
   function startWorkout(date: string, splitId?: string) {
     const split = splitId
-      ? (activeCycle.value?.splits.find(s => s.id === splitId) ?? state.value.plan.splits.find(s => s.id === splitId))
+      ? (cycleForDate(date)?.splits.find(s => s.id === splitId) ?? state.value.plan.splits.find(s => s.id === splitId))
       : scheduledSplitForDate(date)
+    const sessionCycle = cycleForDate(date)
     const workout: Workout = {
       id: uuid(), date, name: split?.name ?? 'Workout', notes: '', unit: state.value.unit,
-      cycleId: activeCycle.value?.id, cycleName: activeCycle.value?.name,
-      scheduledId: activeCycle.value ? `${activeCycle.value.id}:${date}` : undefined,
+      cycleId: sessionCycle?.id, cycleName: sessionCycle?.name,
+      scheduledId: sessionCycle ? `${sessionCycle.id}:${date}` : undefined,
       exercises: (split?.items ?? []).map(item => {
         const ex = state.value.library.find(e => e.id === item.exerciseId)!
         const equipment = item.equipment ?? ex.equipment
