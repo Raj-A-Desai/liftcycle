@@ -24,6 +24,7 @@ const EMPTY: LiftCycleState = {
   activeCycleId: null,
   history: [],
   draft: null,
+  settings: { weeklyWorkoutGoal: 3, defaultMuscleTarget: 3, muscleTargets: {} },
 }
 
 const deepCopy = <T>(v: T): T => JSON.parse(JSON.stringify(v))
@@ -56,6 +57,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
     merged.plan = raw?.plan ? raw.plan : deepCopy(EMPTY.plan)
     merged.plan.splits ??= deepCopy(EMPTY.plan.splits)
     merged.plan.days ??= ['', 'push', '', 'pull', '', 'legs', '']
+    merged.settings = { weeklyWorkoutGoal: Math.max(1, Number(raw?.settings?.weeklyWorkoutGoal ?? 3)), defaultMuscleTarget: Math.max(0, Number(raw?.settings?.defaultMuscleTarget ?? 3)), muscleTargets: raw?.settings?.muscleTargets || {} }
     // Older exports stored target RIR in plans/cycles. Ignore those targets while
     // retaining all RIR readings in completed workout history and drafts.
     for (const plan of [merged.plan, ...merged.cycles]) {
@@ -286,10 +288,22 @@ export const useLiftStore = defineStore('liftcycle', () => {
     split.items.push({ id: uuid(), exerciseId, sets: 2, reps: ex.repMin || 6, load: 0 })
   }
 
+  // Publish an immutable plan version; completed sessions and previous plan editions survive.
   function updateActiveCycle() {
-    const cycle = activeCycle.value
-    if (!cycle) return
-    Object.assign(cycle, deepCopy(state.value.plan), { id: cycle.id, appliedAt: cycle.appliedAt })
+    const previous = activeCycle.value
+    if (!previous) return
+    const today = new Date()
+    const localToday = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`
+    const effectiveFrom = state.value.plan.startDate > localToday ? state.value.plan.startDate : localToday
+    const version: Cycle = {
+      ...deepCopy(state.value.plan),
+      id: uuid(),
+      appliedAt: new Date().toISOString(),
+      previousCycleId: previous.id,
+      effectiveFrom,
+    }
+    state.value.cycles.push(version)
+    state.value.activeCycleId = version.id
   }
 
   function applyCycle() {
@@ -299,7 +313,11 @@ export const useLiftStore = defineStore('liftcycle', () => {
   }
 
   function scheduledSplitForDate(date: string) {
-    const cycle = activeCycle.value; if (!cycle) return null
+    let cycle = activeCycle.value
+    while (cycle?.previousCycleId && date < (cycle.effectiveFrom || cycle.startDate)) {
+      cycle = state.value.cycles.find(c => c.id === cycle!.previousCycleId) ?? null
+    }
+    if (!cycle) return null
     const start = new Date(cycle.startDate + 'T12:00:00')
     const d = new Date(date + 'T12:00:00')
     const diff = Math.floor((d.getTime() - start.getTime()) / 86400000)
@@ -309,11 +327,12 @@ export const useLiftStore = defineStore('liftcycle', () => {
     return cycle.splits.find(s => s.id === splitId) ?? null
   }
 
-  function suggestion(exerciseId: string) {
+  function suggestion(exerciseId: string, equipment?: string) {
     const ex = state.value.library.find(e => e.id === exerciseId)
     if (!ex) return null
-    const past = state.value.history.flatMap(w => w.exercises).filter(e => e.exerciseId === exerciseId)
-    const last = past.at(-1)
+    const past = [...state.value.history].sort((a,b) => a.date.localeCompare(b.date)).flatMap(w => w.exercises).filter(e => e.exerciseId === exerciseId)
+    const matching = equipment ? past.filter(e => e.equipment.trim().toLowerCase() === equipment.trim().toLowerCase()) : past
+    const last = matching.at(-1)
     if (!last) return { label: 'Start conservatively', reps: ex.repMin || 6, load: 0 }
     const work = last.sets.filter(s => s.done && !s.warmup)
     if (!work.length) return null
@@ -340,9 +359,10 @@ export const useLiftStore = defineStore('liftcycle', () => {
       scheduledId: activeCycle.value ? `${activeCycle.value.id}:${date}` : undefined,
       exercises: (split?.items ?? []).map(item => {
         const ex = state.value.library.find(e => e.id === item.exerciseId)!
-        const sug = suggestion(ex.id)
+        const equipment = item.equipment ?? ex.equipment
+        const sug = suggestion(ex.id, equipment)
         const logged: LoggedExercise = {
-          id: uuid(), exerciseId: ex.id, name: ex.name, equipment: ex.equipment, variation: ex.variation,
+          id: uuid(), exerciseId: ex.id, name: ex.name, equipment, variation: ex.variation,
           loadMode: ex.loadMode, loadBasis: ex.loadBasis, unilateral: ex.unilateral, credits: deepCopy(ex.credits),
           sets: Array.from({ length: item.sets || 2 }, () => ({ id: uuid(), weight: sug?.load ?? item.load ?? 0, reps: sug?.reps ?? item.reps ?? ex.repMin, rir: null, warmup: false, done: false }))
         }
