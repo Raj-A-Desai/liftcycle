@@ -40,3 +40,16 @@ data; the app offers an explicit *Export backup / Keep cloud / Keep this device*
 choice if two versions conflict. When switching devices, wait for the **synced**
 indicator before closing the browser. A second-device end-to-end sync test requires
 a confirmed sign-in and deployed site.
+
+## Accountability dashboard (September 2026)
+
+- **Muscles at target**: the count of muscles in your exercise library with at least their weekly credited-set targets; default 3 sets per week. Working sets count using exercise muscle-credit weights, including partial sets; warmups do not count. Individual muscle goals are adjustable from Progress.
+- **Workout consistency**: completed workout sessions per week, averaged over up to the most recent four calendar weeks since the first logged workout (including the current week). The goal-hit ratio uses completed weeks only so the ongoing week doesn't count as a failed week. The default goal is 3 workouts/week and is adjustable.
+- Planned workouts can specify optional equipment. Each logged workout can choose equipment/variation independently, while the exercise identity and muscle-credit rules are shared. Progressive overload reads the most recent matching equipment history.
+- Updating or applying a cycle while another is active publishes a new version. Earlier schedule versions and logged workouts stay intact.
+
+## Current deployment checklist
+
+The GitHub repository is the source of truth. The older ChatGPT Site is a separate artifact and is not automatically replaced by GitHub commits. If Vercel's existing `homebase` integration builds from this repository, configure a **separate LiftCycle Vite project** in the correct account/team, importing `Raj-A-Desai/liftcycle` with root directory `.`, build `npm run build`, and output `dist`.
+
+For magic-link sign-in, set your Vercel production URL in Supabase Authentication > URL Configuration as both Site URL and redirect URL (also allow preview URLs if used). Sign in, use **Import JSON** on the private exported LiftCycle backup, and verify the sync indicator before opening LiftCycle on a second device. Never commit the private workout JSON or a Supabase service-role key.
