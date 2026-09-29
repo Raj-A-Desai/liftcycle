@@ -51,3 +51,129 @@ body{background:radial-gradient(ellipse 90% 50% at 48% -18%,#41304d 0,transparen
 .session-variation{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:10px}.session-variation label{min-width:0}.session-variation input{font-size:12px;padding:8px}
 @media(max-width:850px){.muscle-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.metric-card{padding:22px;min-height:248px}}
 @media(max-width:620px){.app-shell{padding:15px 13px 36px}.progress-hero{grid-template-columns:1fr;gap:12px}.metric-card{min-height:210px;padding:20px}.metric-top{margin-bottom:10px}.metric-number{font-size:54px}.volume-head{align-items:flex-start;flex-direction:column}.muscle-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.muscle-card{padding:12px;border-radius:15px}.muscle-card-top{flex-direction:column;align-items:flex-start;gap:5px}.muscle-numbers>span{font-size:31px}.muscle-card-footer{flex-direction:column;align-items:flex-start}.session-variation{grid-template-columns:1fr}.goal-setting{margin-top:14px}}
+
+
+/* Premium workout coach panel — keep exercise guidance compact and intentional */
+.log-exercise{
+  border-color:#373149;
+  background:linear-gradient(145deg,#1d1a2e 0%,#191727 100%);
+  border-radius:18px;
+  padding:16px;
+  box-shadow:inset 0 1px 0 #ffffff08,0 10px 28px #08070d18;
+}
+.log-ex-head{
+  display:grid;
+  grid-template-columns:minmax(0,1fr) minmax(230px,290px);
+  align-items:start;
+  gap:18px;
+}
+.log-ex-main{min-width:0}
+.log-ex-head h3{
+  margin:0 0 2px;
+  font-size:18px;
+  letter-spacing:-.025em;
+}
+.exercise-guidance{
+  width:100%;
+  max-width:none;
+  min-width:0;
+  height:auto;
+  min-height:0;
+  align-self:start;
+  display:grid;
+  grid-template-columns:1fr;
+  gap:7px;
+  flex:none;
+}
+.log-ex-head .last-performance,
+.log-ex-head .today-guidance{
+  position:relative;
+  width:100%;
+  height:auto;
+  min-height:0;
+  max-height:none;
+  aspect-ratio:auto;
+  align-self:start;
+  overflow:hidden;
+  display:grid;
+  grid-template-columns:auto minmax(0,1fr);
+  grid-template-rows:auto auto;
+  column-gap:9px;
+  row-gap:2px;
+  padding:9px 11px;
+  border-radius:12px;
+  box-sizing:border-box;
+  box-shadow:inset 0 1px 0 #ffffff0a;
+}
+.log-ex-head .last-performance{
+  background:linear-gradient(135deg,#252236,#201e30);
+  border:1px solid #3c3750;
+}
+.log-ex-head .today-guidance{
+  background:linear-gradient(135deg,#352419,#291d18);
+  border:1px solid #65432d;
+  box-shadow:inset 0 1px 0 #ffffff0c,0 7px 18px #0b090c20;
+}
+.log-ex-head .last-performance::before,
+.log-ex-head .today-guidance::before{
+  content:"";
+  grid-row:1 / span 2;
+  width:7px;
+  height:7px;
+  margin-top:3px;
+  border-radius:50%;
+  align-self:start;
+}
+.log-ex-head .last-performance::before{
+  background:#8e88a4;
+  box-shadow:0 0 0 4px #8e88a414;
+}
+.log-ex-head .today-guidance::before{
+  background:#ffad72;
+  box-shadow:0 0 0 4px #ffad7218;
+}
+.log-ex-head .last-performance>span,
+.log-ex-head .today-guidance>span{
+  grid-column:2;
+  font-size:9px;
+  line-height:1.15;
+  text-transform:uppercase;
+  letter-spacing:.13em;
+  font-weight:850;
+  color:#8f899d;
+}
+.log-ex-head .today-guidance>span{color:#d99a72}
+.log-ex-head .last-performance strong,
+.log-ex-head .today-guidance .suggestion{
+  grid-column:2;
+  display:block;
+  width:auto;
+  height:auto;
+  min-height:0;
+  max-width:100%;
+  margin:0;
+  padding:0;
+  border:0;
+  border-radius:0;
+  background:none;
+  box-shadow:none;
+  white-space:normal;
+  overflow-wrap:anywhere;
+  text-align:left;
+  font-size:11px;
+  line-height:1.38;
+  font-weight:750;
+}
+.log-ex-head .last-performance strong{color:#e0dce8}
+.log-ex-head .today-guidance .suggestion{color:#ffd5b6}
+.session-variation{margin-top:11px}
+.set-head{margin-top:15px}
+
+@media(max-width:760px){
+  .log-ex-head{grid-template-columns:1fr}
+  .exercise-guidance{grid-template-columns:repeat(2,minmax(0,1fr))}
+}
+@media(max-width:520px){
+  .exercise-guidance{grid-template-columns:1fr}
+  .log-exercise{padding:13px}
+}
