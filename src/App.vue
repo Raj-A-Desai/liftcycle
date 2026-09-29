@@ -2,7 +2,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { useLiftStore } from './store'
 import { cloudConfigured } from './supabase'
-import type { Exercise, PlanItem } from './types'
+import type { Exercise, LoggedSet, PlanItem } from './types'
 import { MUSCLE_GROUPS, consistencyStats, muscleRows } from './metrics'
 import { actualExerciseSummary } from './workoutSummary'
 
@@ -72,7 +72,17 @@ function startFor(date: string) {
 function addSet(exIndex: number) {
   const ex = store.state.draft?.exercises[exIndex]; if (!ex) return
   const last = ex.sets.at(-1)
-  ex.sets.push({ id: crypto.randomUUID(), weight: last?.weight ?? 0, reps: last?.reps ?? 8, rir: null, warmup: false, done: false })
+  ex.sets.push({ id: crypto.randomUUID(), weight: last?.weight ?? 0, reps: last?.reps ?? 8, rir: null, warmup: false, done: false, skipped: false })
+}
+
+function onSetSkipped(set: LoggedSet) {
+  if (!set.skipped) return
+  set.done = false
+  set.rir = null
+}
+
+function onSetDone(set: LoggedSet) {
+  if (set.done) set.skipped = false
 }
 
 function addExerciseToDraft(exerciseId: string) {
@@ -82,7 +92,7 @@ function addExerciseToDraft(exerciseId: string) {
   draft.exercises.push({
     id: crypto.randomUUID(), exerciseId: ex.id, name: ex.name, equipment: ex.equipment, variation: ex.variation,
     loadMode: ex.loadMode, loadBasis: ex.loadBasis, unilateral: ex.unilateral, credits: JSON.parse(JSON.stringify(ex.credits)),
-    sets: [{ id: crypto.randomUUID(), weight: sug?.load ?? 0, reps: sug?.reps ?? ex.repMin, rir: null, warmup:false, done:false }]
+    sets: [{ id: crypto.randomUUID(), weight: sug?.load ?? 0, reps: sug?.reps ?? ex.repMin, rir: null, warmup:false, done:false, skipped:false }]
   })
 }
 
@@ -179,18 +189,24 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
           <article v-for="d in weekDates()" :key="iso(d)" class="day-card" :class="{today:iso(d)===new Date().toISOString().slice(0,10)}" @click="selectedDate=iso(d)">
             <div class="day-label">{{ fmtDay(d) }}</div>
             <div class="scheduled">{{ scheduledName(iso(d)) }}</div>
-            <template v-if="workoutForDate(iso(d))">
+            <template v-if="workoutForDate(iso(d))?.status === 'skipped'">
+              <div class="skipped-badge">— Skipped</div>
+              <button class="primary full small" @click.stop="store.resumeSkippedWorkout(workoutForDate(iso(d))!.id)">Log instead</button>
+              <button class="text-btn" @click.stop="store.deleteWorkout(workoutForDate(iso(d))!.id)">Undo skip</button>
+            </template>
+            <template v-else-if="workoutForDate(iso(d))">
               <div class="completed-badge">✓ Logged</div>
-              <button class="ghost full" @click="store.editWorkout(workoutForDate(iso(d))!.id); tab='history'">View / edit</button>
+              <button class="ghost full" @click.stop="store.editWorkout(workoutForDate(iso(d))!.id); tab='history'">View / edit</button>
             </template>
             <template v-else-if="scheduledName(iso(d))!=='Rest'">
-              <button class="primary full" @click="startFor(iso(d))">Log workout</button>
+              <button class="primary full" @click.stop="startFor(iso(d))">Log workout</button>
+              <button class="ghost full small" @click.stop="store.skipScheduledWorkout(iso(d))">Skip workout</button>
             </template>
             <div v-else class="rest">Rest</div>
           </article>
         </div>
 
-        <section v-if="workoutForDate(selectedDate)" class="panel" style="margin-top: 1rem">
+        <section v-if="workoutForDate(selectedDate) && workoutForDate(selectedDate)!.status !== 'skipped'" class="panel" style="margin-top: 1rem">
           <div class="panel-head"><div><h2>{{ workoutForDate(selectedDate)!.name }} · {{ selectedDate }}</h2><p>Actual logged working sets, not plan targets. Warmups are excluded.</p></div><button class="ghost" @click="store.editWorkout(workoutForDate(selectedDate)!.id); tab='history'">Edit workout</button></div>
           <div v-for="ex in workoutForDate(selectedDate)!.exercises" :key="ex.id" class="plan-item">
             <div><strong>{{ ex.name }}</strong><small>{{ ex.equipment }}{{ ex.loadBasis==='per-hand' ? ' · per hand' : '' }}</small></div>
@@ -258,8 +274,13 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
       <section v-else-if="tab==='history'" class="page">
         <div class="section-head"><div><div class="eyebrow">YOUR TRAINING RECORD</div><h1>History</h1><p>Edit dates, sets, load, reps, RIR, warmups and missed entries whenever you need.</p></div></div>
         <div class="history-list">
-          <article v-for="w in [...store.state.history].sort((a,b)=>b.date.localeCompare(a.date))" :key="w.id" class="history-card">
-            <div><strong>{{ w.name }}</strong><span>{{ w.date }}</span></div><div>{{ w.exercises.reduce((n,e)=>n+e.sets.filter(s=>s.done&&!s.warmup).length,0) }} work sets</div><div class="row-actions"><button class="ghost small" @click="store.editWorkout(w.id)">Edit</button><button class="danger small" @click="store.deleteWorkout(w.id)">Delete</button></div>
+          <article v-for="w in [...store.state.history].sort((a,b)=>b.date.localeCompare(a.date))" :key="w.id" class="history-card" :class="{skipped:w.status==='skipped'}">
+            <div><strong>{{ w.name }}</strong><span>{{ w.date }}</span></div>
+            <div>{{ w.status === 'skipped' ? 'Skipped' : w.exercises.reduce((n,e)=>n+e.sets.filter(s=>s.done&&!s.warmup&&!s.skipped).length,0) + ' work sets' }}</div>
+            <div class="row-actions">
+              <template v-if="w.status==='skipped'"><button class="primary small" @click="store.resumeSkippedWorkout(w.id)">Log instead</button><button class="ghost small" @click="store.deleteWorkout(w.id)">Undo skip</button></template>
+              <template v-else><button class="ghost small" @click="store.editWorkout(w.id)">Edit</button><button class="danger small" @click="store.deleteWorkout(w.id)">Delete</button></template>
+            </div>
           </article>
           <div v-if="!store.state.history.length" class="empty">Your completed sessions will appear here.</div>
         </div>
@@ -301,8 +322,8 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
         <div class="drawer-head"><div><div class="eyebrow">LOG WORKOUT</div><input class="workout-title" v-model="store.state.draft.name" /><input v-model="store.state.draft.date" type="date" /></div><button class="ghost" @click="store.state.draft=null">Close</button></div>
         <article v-for="(ex,ei) in store.state.draft.exercises" :key="ex.id" class="log-exercise">
           <div class="log-ex-head"><div><h3>{{ ex.name }}</h3><div class="session-variation"><label>Equipment<input v-model="ex.equipment" list="equipment-list" placeholder="Choose equipment" /></label><label>Variation<input v-model="ex.variation" placeholder="Grip, bench angle…" /></label></div></div><span v-if="store.suggestion(ex.exerciseId, ex.equipment)" class="suggestion">{{ store.suggestion(ex.exerciseId, ex.equipment)?.label }}</span></div>
-          <div class="set-head"><span>#</span><span>Weight</span><span>Reps</span><span>RIR</span><span>Warmup</span><span>Done</span></div>
-          <div v-for="(s,si) in ex.sets" :key="s.id" class="set-row" :class="{done:s.done}"><span>{{ si+1 }}</span><input v-model.number="s.weight" type="number" step="0.5" /><input v-model.number="s.reps" type="number" min="0" /><input :value="s.rir ?? ''" @input="s.rir = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" type="number" min="0" max="5" step="0.5" placeholder="—" :disabled="s.warmup" /><input v-model="s.warmup" type="checkbox" @change="s.warmup && (s.rir=null)" /><input v-model="s.done" type="checkbox" /></div>
+          <div class="set-head"><span>#</span><span>Weight</span><span>Reps</span><span>RIR</span><span>Warmup</span><span>Skip</span><span>Done</span></div>
+          <div v-for="(s,si) in ex.sets" :key="s.id" class="set-row" :class="{done:s.done,skipped:s.skipped}"><span>{{ si+1 }}</span><input v-model.number="s.weight" type="number" step="0.5" /><input v-model.number="s.reps" type="number" min="0" /><input :value="s.rir ?? ''" @input="s.rir = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" type="number" min="0" max="5" step="0.5" placeholder="—" :disabled="s.warmup || s.skipped" /><input v-model="s.warmup" type="checkbox" :disabled="s.skipped" @change="s.warmup && (s.rir=null)" /><input v-model="s.skipped" type="checkbox" @change="onSetSkipped(s)" /><input v-model="s.done" type="checkbox" @change="onSetDone(s)" /></div>
           <button class="text-btn" @click="addSet(ei)">+ Add set</button>
         </article>
         <select class="full-select" @change="addExerciseToDraft(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value=''">

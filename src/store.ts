@@ -66,6 +66,17 @@ export const useLiftStore = defineStore('liftcycle', () => {
         for (const item of split.items ?? []) delete item.rir
       }
     }
+    for (const workout of [...merged.history, ...(merged.draft ? [merged.draft] : [])]) {
+      workout.status = workout.status === 'skipped' ? 'skipped' : 'completed'
+      workout.exercises ??= []
+      for (const exercise of workout.exercises) {
+        exercise.sets ??= []
+        for (const set of exercise.sets) {
+          set.skipped = Boolean(set.skipped)
+          if (set.skipped) { set.done = false; set.rir = null }
+        }
+      }
+    }
     return merged
   }
 
@@ -347,7 +358,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
     const matching = equipment ? past.filter(e => e.equipment.trim().toLowerCase() === equipment.trim().toLowerCase()) : past
     const last = matching.at(-1)
     if (!last) return { label: 'Start conservatively', reps: ex.repMin || 6, load: 0 }
-    const work = last.sets.filter(s => s.done && !s.warmup)
+    const work = last.sets.filter(s => s.done && !s.warmup && !s.skipped)
     if (!work.length) return null
     const minReps = Math.min(...work.map(s => s.reps))
     const maxReps = Math.max(...work.map(s => s.reps))
@@ -368,7 +379,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
       : scheduledSplitForDate(date)
     const sessionCycle = cycleForDate(date)
     const workout: Workout = {
-      id: uuid(), date, name: split?.name ?? 'Workout', notes: '', unit: state.value.unit,
+      id: uuid(), date, name: split?.name ?? 'Workout', notes: '', unit: state.value.unit, status: 'completed',
       cycleId: sessionCycle?.id, cycleName: sessionCycle?.name,
       scheduledId: sessionCycle ? `${sessionCycle.id}:${date}` : undefined,
       exercises: (split?.items ?? []).map(item => {
@@ -378,7 +389,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
         const logged: LoggedExercise = {
           id: uuid(), exerciseId: ex.id, name: ex.name, equipment, variation: ex.variation,
           loadMode: ex.loadMode, loadBasis: ex.loadBasis, unilateral: ex.unilateral, credits: deepCopy(ex.credits),
-          sets: Array.from({ length: item.sets || 2 }, () => ({ id: uuid(), weight: sug?.load ?? item.load ?? 0, reps: sug?.reps ?? item.reps ?? ex.repMin, rir: null, warmup: false, done: false }))
+          sets: Array.from({ length: item.sets || 2 }, () => ({ id: uuid(), weight: sug?.load ?? item.load ?? 0, reps: sug?.reps ?? item.reps ?? ex.repMin, rir: null, warmup: false, done: false, skipped: false }))
         }
         return logged
       })
@@ -387,8 +398,30 @@ export const useLiftStore = defineStore('liftcycle', () => {
     return workout
   }
 
+  function skipScheduledWorkout(date: string) {
+    if (state.value.history.some(w => w.date === date)) return
+    const split = scheduledSplitForDate(date)
+    if (!split) return
+    const cycle = cycleForDate(date)
+    state.value.history.push({
+      id: uuid(), date, name: split.name, notes: '', unit: state.value.unit, status: 'skipped',
+      cycleId: cycle?.id, cycleName: cycle?.name,
+      scheduledId: cycle ? `${cycle.id}:${date}` : undefined,
+      exercises: [],
+    })
+  }
+
+  function resumeSkippedWorkout(id: string) {
+    const skipped = state.value.history.find(w => w.id === id && w.status === 'skipped')
+    if (!skipped) return null
+    const date = skipped.date
+    state.value.history = state.value.history.filter(w => w.id !== id)
+    return startWorkout(date)
+  }
+
   function saveDraft() {
     if (!state.value.draft) return
+    state.value.draft.status = 'completed'
     const i = state.value.history.findIndex(w => w.id === state.value.draft!.id)
     if (i >= 0) state.value.history[i] = deepCopy(state.value.draft)
     else state.value.history.push(deepCopy(state.value.draft))
@@ -408,8 +441,8 @@ export const useLiftStore = defineStore('liftcycle', () => {
     const totals: Record<string,{direct:number;partial:number}> = {}
     state.value.history.forEach(w => {
       const d = new Date(w.date + 'T12:00:00')
-      if (d < start || d >= end) return
-      w.exercises.forEach(ex => ex.sets.filter(s => s.done && !s.warmup).forEach(() => {
+      if (d < start || d >= end || w.status === 'skipped') return
+      w.exercises.forEach(ex => ex.sets.filter(s => s.done && !s.warmup && !s.skipped).forEach(() => {
         Object.entries(ex.credits || {}).forEach(([muscle, credit]) => {
           totals[muscle] ??= { direct: 0, partial: 0 }
           if (credit >= 1) totals[muscle].direct += credit
@@ -453,6 +486,6 @@ export const useLiftStore = defineStore('liftcycle', () => {
   }
 
   return { state, hydrated, userId, userEmail, syncStatus, syncError, activeCycle, hydrateLocal, setSession, pullCloudOrSeed, pushCloud, useThisDevice, useCloudVersion, updateActiveCycle,
-    addExercise, updateExercise, deleteExercise, addPlanItem, applyCycle, scheduledSplitForDate, suggestion, startWorkout, saveDraft, editWorkout, deleteWorkout,
+    addExercise, updateExercise, deleteExercise, addPlanItem, applyCycle, scheduledSplitForDate, suggestion, startWorkout, skipScheduledWorkout, resumeSkippedWorkout, saveDraft, editWorkout, deleteWorkout,
     muscleTotalsForWeek, importState, exportState, signIn, signOut }
 })

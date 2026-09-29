@@ -1,7 +1,7 @@
 import type { LoggedExercise } from './types'
 
 export function actualExerciseSummary(exercise: LoggedExercise, unit: string) {
-  const workSets = exercise.sets.filter(set => set.done && !set.warmup)
+  const workSets = exercise.sets.filter(set => set.done && !set.warmup && !set.skipped)
   if (!workSets.length) return { work: 'No completed work sets', note: '' }
 
   const groups: Array<{ weight: number; reps: number; count: number }> = []

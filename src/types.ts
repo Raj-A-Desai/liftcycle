@@ -22,7 +22,7 @@ export interface PlanItem { id: string; exerciseId: string; sets: number; reps: 
 export interface Split { id: string; name: string; items: PlanItem[] }
 export interface Plan { name: string; startDate: string; weeks: number; days: string[]; splits: Split[] }
 export interface Cycle extends Plan { id: string; appliedAt: string; effectiveFrom?: string; previousCycleId?: string }
-export interface LoggedSet { id: string; weight: number; reps: number; rir: number | null; warmup: boolean; done: boolean }
+export interface LoggedSet { id: string; weight: number; reps: number; rir: number | null; warmup: boolean; done: boolean; skipped?: boolean }
 export interface LoggedExercise {
   id: string
   exerciseId: string
@@ -41,6 +41,7 @@ export interface Workout {
   name: string
   notes: string
   unit: string
+  status?: 'completed' | 'skipped'
   cycleId?: string
   cycleName?: string
   scheduledId?: string

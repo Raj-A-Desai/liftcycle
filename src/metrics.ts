@@ -46,7 +46,8 @@ function weekOffset(date: Date, amount: number): string {
   return iso(d)
 }
 export function isCompletedSession(workout: Workout): boolean {
-  return workout.exercises.some(ex => ex.sets.some(s => s.done && !s.warmup))
+  if (workout.status === 'skipped') return false
+  return workout.exercises.some(ex => ex.sets.some(s => s.done && !s.warmup && !s.skipped))
 }
 
 export function muscleRows(state: LiftCycleState, anchor: Date): MuscleRow[] {
@@ -65,10 +66,10 @@ export function muscleRows(state: LiftCycleState, anchor: Date): MuscleRow[] {
     if (Number(target) > 0) active.add(muscle)
   }
   for (const workout of state.history) {
-    if (workout.date < start || workout.date >= end) continue
+    if (workout.date < start || workout.date >= end || workout.status === 'skipped') continue
     for (const ex of workout.exercises) {
       for (const set of ex.sets) {
-        if (!set.done || set.warmup) continue
+        if (!set.done || set.warmup || set.skipped) continue
         for (const [muscle, rawCredit] of Object.entries(ex.credits || {})) {
           const credit = Number(rawCredit)
           if (!Number.isFinite(credit) || credit <= 0) continue
