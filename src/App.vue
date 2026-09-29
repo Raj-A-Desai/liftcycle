@@ -11,8 +11,13 @@ const tab = ref<'schedule'|'cycle'|'exercises'|'history'|'progress'>('schedule')
 const showExerciseForm = ref(false)
 const editingExerciseId = ref<string | null>(null)
 const authEmail = ref('')
+const authPassword = ref('')
 const authSent = ref(false)
 const authError = ref('')
+const showPasswordSetup = ref(false)
+const newPassword = ref('')
+const accountMessage = ref('')
+const accountError = ref('')
 const toastError = ref('')
 const weekAnchor = ref(new Date())
 const selectedDate = ref(`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`)
@@ -126,10 +131,50 @@ function addExerciseToDraft(exerciseId: string) {
   })
 }
 
+async function signInWithPassword() {
+  authError.value = ''
+  if (!authEmail.value.trim() || !authPassword.value) {
+    authError.value = 'Enter your email and password.'
+    return
+  }
+  try {
+    await store.signInWithPassword(authEmail.value.trim(), authPassword.value)
+    authPassword.value = ''
+  } catch (e:any) {
+    authError.value = e?.message ?? 'Could not sign in.'
+  }
+}
+
 async function sendMagicLink() {
-  authError.value=''
-  try { await store.signIn(authEmail.value); authSent.value = true }
-  catch (e:any) { authError.value = e?.message ?? 'Could not send sign-in link.' }
+  authError.value = ''
+  authSent.value = false
+  try {
+    await store.signIn(authEmail.value.trim())
+    authSent.value = true
+  } catch (e:any) {
+    const message = e?.message ?? 'Could not send sign-in link.'
+    authError.value = /rate limit/i.test(message)
+      ? 'Email sign-in is temporarily rate limited. Use your password instead, or try the magic link later.'
+      : message
+  }
+}
+
+async function saveAccountPassword() {
+  accountError.value = ''
+  accountMessage.value = ''
+  if (newPassword.value.length < 8) {
+    accountError.value = 'Use at least 8 characters.'
+    return
+  }
+  try {
+    await store.setPassword(newPassword.value)
+    newPassword.value = ''
+    showPasswordSetup.value = false
+    accountMessage.value = 'Password saved. You can now sign in on your phone with email + password.'
+    window.setTimeout(() => { accountMessage.value = '' }, 6000)
+  } catch (e:any) {
+    accountError.value = e?.message ?? 'Could not update password.'
+  }
 }
 
 async function importJson(ev: Event) {
@@ -172,22 +217,43 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
           <span class="dot"></span>
           {{ store.userId ? store.syncStatus : 'Local only' }}
         </div>
+        <button v-if="store.userId" class="ghost small" @click="showPasswordSetup=!showPasswordSetup; accountError=''; accountMessage=''">Password</button>
         <button v-if="store.userId" class="ghost small" @click="signOut()">Sign out</button>
       </div>
     </header>
 
-    <section v-if="cloudConfigured && !store.userId" class="cloud-card">
+    <section v-if="cloudConfigured && !store.userId" class="cloud-card auth-card">
       <div>
-        <strong>Sync LiftCycle across your devices</strong>
-        <p>Your workouts still save locally. Sign in once on each device to keep the same data everywhere.</p>
+        <strong>Sign in to sync Homebase</strong>
+        <p>Use the same account on your phone and desktop. Password sign-in avoids email-link rate limits.</p>
       </div>
-      <div v-if="!authSent" class="auth-row">
-        <input v-model="authEmail" type="email" placeholder="you@example.com" @keyup.enter="sendMagicLink" />
-        <button class="primary" @click="sendMagicLink">Email me a sign-in link</button>
+      <div class="auth-stack">
+        <div class="auth-fields">
+          <input v-model="authEmail" type="email" autocomplete="email" placeholder="Email" />
+          <input v-model="authPassword" type="password" autocomplete="current-password" placeholder="Password" @keyup.enter="signInWithPassword" />
+        </div>
+        <div class="auth-actions">
+          <button class="primary" @click="signInWithPassword">Sign in</button>
+          <button class="ghost" @click="sendMagicLink">Email magic link</button>
+        </div>
+        <div v-if="authSent" class="success-note">Magic link sent. Open it on this device to finish signing in.</div>
       </div>
-      <div v-else class="success-note">Check your email and open the LiftCycle sign-in link.</div>
       <div v-if="authError" class="error-note">{{ authError }}</div>
     </section>
+
+    <section v-if="store.userId && showPasswordSetup" class="cloud-card password-card">
+      <div>
+        <strong>Set a password for easy phone access</strong>
+        <p>You’ll stay signed in on each device, and future sign-ins won’t require an email link.</p>
+      </div>
+      <div class="auth-row password-setup">
+        <input v-model="newPassword" type="password" autocomplete="new-password" minlength="8" placeholder="New password (8+ characters)" @keyup.enter="saveAccountPassword" />
+        <button class="primary" @click="saveAccountPassword">Save password</button>
+        <button class="ghost" @click="showPasswordSetup=false; newPassword=''; accountError=''">Cancel</button>
+      </div>
+      <div v-if="accountError" class="error-note">{{ accountError }}</div>
+    </section>
+    <div v-if="accountMessage" class="success-banner">{{ accountMessage }}</div>
 
     <section v-if="store.syncStatus==='conflict'" class="cloud-card">
       <div><strong>Sync conflict</strong><p>This device and the cloud both have changes. Export JSON before replacing either version.</p></div>

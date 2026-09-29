@@ -177,3 +177,30 @@ body{background:radial-gradient(ellipse 90% 50% at 48% -18%,#41304d 0,transparen
   .exercise-guidance{grid-template-columns:1fr}
   .log-exercise{padding:13px}
 }
+
+
+/* Account access across devices */
+.auth-card{align-items:center}
+.auth-stack{display:grid;gap:9px;min-width:min(100%,390px)}
+.auth-fields{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.auth-actions{display:flex;gap:8px;justify-content:flex-end}
+.auth-actions button{white-space:nowrap}
+.password-card{align-items:center}
+.password-setup{min-width:min(100%,470px)}
+.password-setup input{min-width:220px}
+.success-banner{
+  margin:-6px 0 14px;
+  padding:10px 13px;
+  border:1px solid #466653;
+  border-radius:11px;
+  background:#1d3025;
+  color:#c5e9cf;
+  font-size:12px;
+  font-weight:700;
+}
+@media(max-width:760px){
+  .auth-fields{grid-template-columns:1fr}
+  .auth-actions{justify-content:stretch}
+  .auth-actions button{flex:1}
+  .password-setup{min-width:0}
+}

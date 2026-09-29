@@ -470,7 +470,25 @@ export const useLiftStore = defineStore('liftcycle', () => {
 
   async function signIn(email: string) {
     if (!supabase) throw new Error('Cloud sync is not configured')
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } })
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: window.location.origin,
+        shouldCreateUser: false,
+      },
+    })
+    if (error) throw error
+  }
+
+  async function signInWithPassword(email: string, password: string) {
+    if (!supabase) throw new Error('Cloud sync is not configured')
+    const { error } = await supabase.auth.signInWithPassword({ email, password })
+    if (error) throw error
+  }
+
+  async function setPassword(password: string) {
+    if (!supabase || !userId.value) throw new Error('Sign in before setting a password.')
+    const { error } = await supabase.auth.updateUser({ password })
     if (error) throw error
   }
 
@@ -487,5 +505,5 @@ export const useLiftStore = defineStore('liftcycle', () => {
 
   return { state, hydrated, userId, userEmail, syncStatus, syncError, activeCycle, hydrateLocal, setSession, pullCloudOrSeed, pushCloud, useThisDevice, useCloudVersion, updateActiveCycle,
     addExercise, updateExercise, deleteExercise, addPlanItem, applyCycle, scheduledSplitForDate, suggestion, startWorkout, skipScheduledWorkout, resumeSkippedWorkout, saveDraft, editWorkout, deleteWorkout,
-    muscleTotalsForWeek, importState, exportState, signIn, signOut }
+    muscleTotalsForWeek, importState, exportState, signIn, signInWithPassword, setPassword, signOut }
 })
