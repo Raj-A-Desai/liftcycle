@@ -85,6 +85,36 @@ function onSetDone(set: LoggedSet) {
   if (set.done) set.skipped = false
 }
 
+function previousPerformanceLabel(exerciseId: string, equipment: string, beforeDate: string, currentWorkoutId: string) {
+  const normalizedEquipment = equipment.trim().toLowerCase()
+  const workouts = [...store.state.history]
+    .filter(w => w.id !== currentWorkoutId && w.status !== 'skipped' && w.date <= beforeDate)
+    .sort((a,b) => b.date.localeCompare(a.date))
+
+  const findPrevious = (requireEquipmentMatch: boolean) => {
+    for (const workout of workouts) {
+      const exercise = workout.exercises.find(ex => {
+        if (ex.exerciseId !== exerciseId) return false
+        if (!ex.sets.some(set => set.done && !set.warmup && !set.skipped)) return false
+        if (!requireEquipmentMatch || !normalizedEquipment) return true
+        return ex.equipment.trim().toLowerCase() === normalizedEquipment
+      })
+      if (exercise) return { workout, exercise }
+    }
+    return null
+  }
+
+  const previous = findPrevious(true) ?? findPrevious(false)
+  if (!previous) return ''
+
+  const date = new Date(previous.workout.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+  const summary = actualExerciseSummary(previous.exercise, previous.workout.unit)
+  const equipmentNote = normalizedEquipment && previous.exercise.equipment.trim().toLowerCase() !== normalizedEquipment
+    ? ` · ${previous.exercise.equipment}`
+    : ''
+  return `${date} · ${summary.work}${summary.note ? ` · ${summary.note}` : ''}${equipmentNote}`
+}
+
 function addExerciseToDraft(exerciseId: string) {
   const draft = store.state.draft; const ex = store.state.library.find(e => e.id === exerciseId); if (!draft || !ex) return
   if (draft.exercises.some(e => e.exerciseId === exerciseId)) return
@@ -321,7 +351,22 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
       <div class="drawer-card">
         <div class="drawer-head"><div><div class="eyebrow">LOG WORKOUT</div><input class="workout-title" v-model="store.state.draft.name" /><input v-model="store.state.draft.date" type="date" /></div><button class="ghost" @click="store.state.draft=null">Close</button></div>
         <article v-for="(ex,ei) in store.state.draft.exercises" :key="ex.id" class="log-exercise">
-          <div class="log-ex-head"><div><h3>{{ ex.name }}</h3><div class="session-variation"><label>Equipment<input v-model="ex.equipment" list="equipment-list" placeholder="Choose equipment" /></label><label>Variation<input v-model="ex.variation" placeholder="Grip, bench angle…" /></label></div></div><span v-if="store.suggestion(ex.exerciseId, ex.equipment)" class="suggestion">{{ store.suggestion(ex.exerciseId, ex.equipment)?.label }}</span></div>
+          <div class="log-ex-head">
+            <div class="log-ex-main">
+              <h3>{{ ex.name }}</h3>
+              <div class="session-variation"><label>Equipment<input v-model="ex.equipment" list="equipment-list" placeholder="Choose equipment" /></label><label>Variation<input v-model="ex.variation" placeholder="Grip, bench angle…" /></label></div>
+            </div>
+            <div class="exercise-guidance">
+              <div v-if="previousPerformanceLabel(ex.exerciseId, ex.equipment, store.state.draft!.date, store.state.draft!.id)" class="last-performance">
+                <span>Last workout</span>
+                <strong>{{ previousPerformanceLabel(ex.exerciseId, ex.equipment, store.state.draft!.date, store.state.draft!.id) }}</strong>
+              </div>
+              <div v-if="store.suggestion(ex.exerciseId, ex.equipment)" class="today-guidance">
+                <span>Today</span>
+                <strong class="suggestion">{{ store.suggestion(ex.exerciseId, ex.equipment)?.label }}</strong>
+              </div>
+            </div>
+          </div>
           <div class="set-head"><span>#</span><span>Weight</span><span>Reps</span><span>RIR</span><span>Warmup</span><span>Skip</span><span>Done</span></div>
           <div v-for="(s,si) in ex.sets" :key="s.id" class="set-row" :class="{done:s.done,skipped:s.skipped}"><span>{{ si+1 }}</span><input v-model.number="s.weight" type="number" step="0.5" /><input v-model.number="s.reps" type="number" min="0" /><input :value="s.rir ?? ''" @input="s.rir = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" type="number" min="0" max="5" step="0.5" placeholder="—" :disabled="s.warmup || s.skipped" /><input v-model="s.warmup" type="checkbox" :disabled="s.skipped" @change="s.warmup && (s.rir=null)" /><input v-model="s.skipped" type="checkbox" @change="onSetSkipped(s)" /><input v-model="s.done" type="checkbox" @change="onSetDone(s)" /></div>
           <button class="text-btn" @click="addSet(ei)">+ Add set</button>
