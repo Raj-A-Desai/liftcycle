@@ -282,13 +282,12 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
         <div class="cycle-banner"><span>{{ activeCycleLabel }}</span><button class="text-btn" @click="tab='cycle'">Edit cycle</button></div>
 
         <div class="week-grid">
-          <article v-for="d in weekDates()" :key="iso(d)" class="day-card" :class="{today:iso(d)===new Date().toISOString().slice(0,10)}" @click="selectedDate=iso(d)">
+          <article v-for="d in weekDates()" :key="iso(d)" class="day-card" :class="{today:iso(d)===iso(new Date()), 'is-skipped':workoutForDate(iso(d))?.status==='skipped'}" @click="selectedDate=iso(d)">
             <div class="day-label">{{ fmtDay(d) }}</div>
             <div class="scheduled">{{ scheduledName(iso(d)) }}</div>
             <template v-if="workoutForDate(iso(d))?.status === 'skipped'">
-              <div class="skipped-badge">— Skipped</div>
-              <button class="primary full small" @click.stop="store.resumeSkippedWorkout(workoutForDate(iso(d))!.id)">Log instead</button>
-              <button class="text-btn" @click.stop="store.deleteWorkout(workoutForDate(iso(d))!.id)">Undo skip</button>
+              <span class="skipped-badge">Skipped</span>
+              <button class="restore-workout" :aria-label="`Restore ${scheduledName(iso(d))} workout on ${fmtDay(d)}`" @click.stop="store.deleteWorkout(workoutForDate(iso(d))!.id)">Restore</button>
             </template>
             <template v-else-if="workoutForDate(iso(d))">
               <div class="completed-badge">✓ Logged</div>
@@ -434,7 +433,16 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
             </div>
           </div>
           <div class="set-head"><span>#</span><span>Weight</span><span>Reps</span><span>RIR</span><span>Warmup</span><span>Skip</span><span>Done</span></div>
-          <div v-for="(s,si) in ex.sets" :key="s.id" class="set-row" :class="{done:s.done,skipped:s.skipped}"><span>{{ si+1 }}</span><input v-model.number="s.weight" type="number" step="0.5" /><input v-model.number="s.reps" type="number" min="0" /><input :value="s.rir ?? ''" @input="s.rir = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" type="number" min="0" max="5" step="0.5" placeholder="—" :disabled="s.warmup || s.skipped" /><input v-model="s.warmup" type="checkbox" :disabled="s.skipped" @change="s.warmup && (s.rir=null)" /><input v-model="s.skipped" type="checkbox" @change="onSetSkipped(s)" /><input v-model="s.done" type="checkbox" @change="onSetDone(s)" /></div>
+          <div v-for="(s,si) in ex.sets" :key="s.id" class="set-row" :class="{done:s.done,skipped:s.skipped}">
+            <span>{{ si+1 }}</span>
+            <input v-model.number="s.weight" :aria-label="`${ex.name} set ${si+1} weight`" type="number" step="0.5" />
+            <input v-model.number="s.reps" :aria-label="`${ex.name} set ${si+1} reps`" type="number" min="0" />
+            <span v-if="s.warmup || s.skipped" class="rir-not-applicable" :aria-label="s.warmup ? 'RIR not needed for warmup sets' : 'RIR not needed for skipped sets'">—</span>
+            <input v-else :value="s.rir ?? ''" :aria-label="`${ex.name} set ${si+1} RIR`" @input="s.rir = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" type="number" min="0" max="5" step="0.5" placeholder="—" />
+            <input v-model="s.warmup" :aria-label="`${ex.name} set ${si+1} warmup`" type="checkbox" :disabled="s.skipped" @change="s.warmup && (s.rir=null)" />
+            <input v-model="s.skipped" :aria-label="`${ex.name} set ${si+1} skip`" type="checkbox" @change="onSetSkipped(s)" />
+            <input v-model="s.done" :aria-label="`${ex.name} set ${si+1} done`" type="checkbox" @change="onSetDone(s)" />
+          </div>
           <button class="text-btn" @click="addSet(ei)">+ Add set</button>
         </article>
         <select class="full-select" @change="addExerciseToDraft(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value=''">

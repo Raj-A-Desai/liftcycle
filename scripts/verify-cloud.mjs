@@ -12,7 +12,7 @@ const assets = bundleText('dist')
 if (!assets.includes('xzeshoksqfmxehrwijqo.supabase.co')) {
   throw new Error('The production bundle has no configured LiftCycle Supabase URL.')
 }
-if (!assets.includes('Sync LiftCycle across your devices')) {
+if (!assets.includes('Sign in to sync Homebase')) {
   throw new Error('The production bundle is missing the sign-in UI.')
 }
 console.log('Cloud configuration and sign-in UI are included in the production bundle.')
