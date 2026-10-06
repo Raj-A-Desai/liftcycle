@@ -1,13 +1,16 @@
+import { newId } from './id'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import type { LiftCycleState, Exercise, Workout, Cycle, PlanItem, LoggedExercise } from './types'
 import { supabase } from './supabase'
 import { splitForCalendarDate } from './schedule'
+import { emptyRhythm, normalizeRhythm } from './rhythm'
 
 const LOCAL_KEY = 'liftcycle-state-v3'
 const DIRTY_KEY = `${LOCAL_KEY}:unsynced`
 const EMPTY: LiftCycleState = {
   schemaVersion: 3,
+  rhythm: emptyRhythm(),
   unit: 'lb',
   library: [],
   plan: {
@@ -29,7 +32,7 @@ const EMPTY: LiftCycleState = {
 }
 
 const deepCopy = <T>(v: T): T => JSON.parse(JSON.stringify(v))
-const uuid = () => crypto.randomUUID()
+const uuid = () => newId()
 
 export const useLiftStore = defineStore('liftcycle', () => {
   const state = ref<LiftCycleState>(deepCopy(EMPTY))
@@ -52,6 +55,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
   function normalize(raw: any): LiftCycleState {
     const merged = { ...deepCopy(EMPTY), ...raw }
     merged.schemaVersion = 3
+    merged.rhythm = normalizeRhythm(raw?.rhythm)
     merged.library = Array.isArray(raw?.library) ? raw.library : []
     merged.cycles = Array.isArray(raw?.cycles) ? raw.cycles : []
     merged.history = Array.isArray(raw?.history) ? raw.history : []
@@ -374,6 +378,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
   }
 
   function startWorkout(date: string, splitId?: string) {
+    if (state.value.draft) return state.value.draft
     const split = splitId
       ? (cycleForDate(date)?.splits.find(s => s.id === splitId) ?? state.value.plan.splits.find(s => s.id === splitId))
       : scheduledSplitForDate(date)
@@ -412,6 +417,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
   }
 
   function resumeSkippedWorkout(id: string) {
+    if (state.value.draft) return state.value.draft
     const skipped = state.value.history.find(w => w.id === id && w.status === 'skipped')
     if (!skipped) return null
     const date = skipped.date
@@ -429,6 +435,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
   }
 
   function editWorkout(id: string) {
+    if (state.value.draft) return
     const w = state.value.history.find(w => w.id === id)
     if (w) state.value.draft = deepCopy(w)
   }
@@ -493,7 +500,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
   }
 
   async function signOut() {
-    if (localStorage.getItem(DIRTY_KEY)) throw new Error('You have unsynced workout changes. Sync or export a backup before signing out.')
+    if (localStorage.getItem(DIRTY_KEY)) throw new Error('You have unsynced Homebase changes. Sync or export a backup before signing out.')
     if (supabase) {
       const { error } = await supabase.auth.signOut()
       if (error) throw error
@@ -501,6 +508,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
     applyingCloud = true
     try { state.value = deepCopy(EMPTY) } finally { applyingCloud = false }
     localStorage.removeItem(LOCAL_KEY)
+    localStorage.removeItem('homebase-rhythm-before-import')
   }
 
   return { state, hydrated, userId, userEmail, syncStatus, syncError, activeCycle, hydrateLocal, setSession, pullCloudOrSeed, pushCloud, useThisDevice, useCloudVersion, updateActiveCycle,

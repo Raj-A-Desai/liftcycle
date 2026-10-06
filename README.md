@@ -65,3 +65,27 @@ The client initializes the dedicated LiftCycle Supabase project with its **publi
 The GitHub workflow builds the Vite app and verifies the production bundle includes the Supabase project and sign-in panel. GitHub deployment checks show when Vercel has successfully built a commit; each `homebase-<hash>-...` deployment URL is immutable, so after updating the code open the **new** deployment or your stable Homebase production domain, not a previous deployment URL.
 
 In the Supabase dashboard, under **Authentication → URL Configuration**, set **Site URL** to the stable Homebase production domain and add the same URL under **Redirect URLs**. Add exact preview deployment URLs individually when testing previews. Log in from Homebase, import the existing LiftCycle JSON from your browser, wait for **Synced**, then sign in with the same email on a second device and verify your training history is present.
+
+## Homebase: Rhythm and Training
+
+Homebase now exposes `#/rhythm` and `#/training/{schedule,cycle,exercises,history,progress}`. Rhythm is a native Vue feature, sharing the existing Pinia store, Supabase session, conflict handling, backup export, and local cache. The optional `rhythm` namespace in schema-v3 state carries daily routines, weekly goals, work intensity, manual meetings, imported calendar snapshots, and private labels. Existing workout, cycle, exercise, and draft fields retain their identities.
+
+Workout dates and completion come exclusively from Training. Rhythm shows planned, draft, completed, and skipped sessions and opens the existing logger. Closing the logger keeps its draft; explicit discard removes it. Both sections share the selected date/week. Routine times are Eastern targets, not recorded workout start times.
+
+### One-time Rhythm transfer
+
+Publish the companion transfer changes to the existing private Rhythm Site before releasing Homebase. Signed-in users choose **Bring in Rhythm**, which opens that Site with its existing authentication. The exporter reads authenticated progress and meetings, includes pending local progress, converts old index-based checkmarks to stable IDs, and sends only to the fixed Homebase origin and original opener with the matching nonce. No tokens are passed between the apps. JSON export/import is the fallback for popup or cross-origin-opener restrictions.
+
+The importer merges completed habits, keeps the higher water count, deduplicates goals and meetings, preserves other Homebase state, and saves through the existing authenticated sync. Original Rhythm data remains in its private store. This is a one-time migration, not ongoing bidirectional sync with the old Site; after importing, make new changes in Homebase. Imported calendar events remain a dated snapshot. New manual meetings are created in Homebase.
+
+Do not commit personal calendar snapshots, exported progress, meeting data, credentials, or user-state backups to this public repository. Generic routines are shipped in code; personalized labels and events arrive only through the authenticated transfer.
+
+Validation: `npm test` covers Training projections, skipped/draft/completed states, idempotent transfer merges, meeting overlap segmentation, Eastern dates, and existing workout metrics. `npm run build` typechecks without generating source-adjacent JavaScript.
+
+## Privacy and configuration boundaries
+
+- **User data:** workouts, goals, habits, meetings, imported calendars, and personal labels live in the signed-in user's Supabase row (RLS) and browser offline cache. They are not source files or deployment environment variables. Signing out clears the Homebase cache and the pre-transfer backup on that device.
+- **Public browser settings:** `VITE_SUPABASE_URL` and `VITE_SUPABASE_PUBLISHABLE_KEY` are intentionally visible. The checked-in production defaults contain only these two public values. Vercel environment overrides are supported. The build rejects a privileged Supabase key before bundling it.
+- **Server credentials:** future service-role keys, provider tokens, or signing secrets must be configured as sensitive server-only Vercel variables, scoped to the required environments, and used only by server endpoints. Never prefix them with `VITE_`; environment-variable storage does not hide a value shipped to the browser.
+- **Local private configuration:** use ignored `.env.local` / `.env.production.local`; commit only placeholder names to `.env.example`. Private configs, credentials, and Homebase/Rhythm backup exports are ignored. The separate private Rhythm Site retains its own source and database; do not copy that source into this public repository.
+- **Before publishing:** review changed files, run `npm run verify:privacy`, and keep credentials out of logs. CI runs the same focused check for recognized secret formats, private export filenames, and unexpected committed environment variables. This is a guard against common mistakes, not an exhaustive secret scanner. If a real secret is ever published, revoke/rotate it immediately; deleting a file does not erase Git history.

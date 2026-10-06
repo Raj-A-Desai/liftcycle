@@ -1,6 +1,9 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { newId } from './id'
+import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useLiftStore } from './store'
+import RhythmView from './components/RhythmView.vue'
+import { dateKey } from './rhythm'
 import { cloudConfigured } from './supabase'
 import type { Exercise, LoggedSet, PlanItem } from './types'
 import { MUSCLE_GROUPS, consistencyStats, muscleRows } from './metrics'
@@ -8,6 +11,27 @@ import { actualExerciseSummary } from './workoutSummary'
 
 const store = useLiftStore()
 const tab = ref<'schedule'|'cycle'|'exercises'|'history'|'progress'>('schedule')
+const section = ref<'rhythm'|'training'>('rhythm')
+const loggerOpen = ref(false)
+function readRoute() {
+  const parts = window.location.hash.replace('#/','').split('/')
+  section.value = parts[0] === 'training' ? 'training' : 'rhythm'
+  if (['schedule','cycle','exercises','history','progress'].includes(parts[1] || '')) tab.value = parts[1] as typeof tab.value
+}
+readRoute()
+watch([section,tab],()=>{const hash = section.value === 'training' ? '#/training/'+tab.value : '#/rhythm'; if(window.location.hash !== hash) window.location.hash=hash})
+onMounted(()=>window.addEventListener('hashchange',readRoute))
+onBeforeUnmount(()=>window.removeEventListener('hashchange',readRoute))
+function openFromRhythm(date: string, id?: string) {
+  selectedDate.value=date; weekAnchor.value=new Date(date+'T12:00:00')
+  if(store.state.draft) { loggerOpen.value=true; return }
+  const workout=store.state.history.find(w=>w.id===id)
+  if(workout?.status==='skipped')store.resumeSkippedWorkout(workout.id)
+  else if(workout)store.editWorkout(workout.id)
+  else startFor(date)
+  loggerOpen.value=true
+}
+watch(()=>store.state.draft?.id,id=>{if(id)loggerOpen.value=true})
 const showExerciseForm = ref(false)
 const editingExerciseId = ref<string | null>(null)
 const authEmail = ref('')
@@ -20,8 +44,9 @@ const accountMessage = ref('')
 const accountError = ref('')
 const toastError = ref('')
 const weekAnchor = ref(new Date())
-const selectedDate = ref(`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`)
+const selectedDate = ref(dateKey())
 const importInput = ref<HTMLInputElement | null>(null)
+watch(selectedDate,value=>{weekAnchor.value=new Date(value+'T12:00:00')})
 
 const muscles = [...MUSCLE_GROUPS]
 const equipmentOptions = ['Dumbbells','Barbell','Kettlebell','Cable','Machine','Bodyweight','Resistance band','EZ bar','Smith machine','Other']
@@ -63,21 +88,22 @@ function weekDates(anchor = weekAnchor.value) {
 }
 function iso(d: Date) { return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}` }
 function fmtDay(d: Date) { return d.toLocaleDateString(undefined,{weekday:'short',day:'numeric'}) }
-function moveWeek(n: number) { const d = new Date(weekAnchor.value); d.setDate(d.getDate()+n*7); weekAnchor.value = d }
+function moveWeek(n: number) { const d = new Date(weekAnchor.value); d.setDate(d.getDate()+n*7); weekAnchor.value = d; selectedDate.value=iso(d) }
 
 function workoutForDate(date: string) { return store.state.history.find(w => w.date === date) }
-function scheduledName(date: string) { return store.scheduledSplitForDate(date)?.name ?? 'Rest' }
+function scheduledName(date: string) { return workoutForDate(date)?.name ?? store.scheduledSplitForDate(date)?.name ?? 'Rest' }
 
 function startFor(date: string) {
   selectedDate.value = date
   const split = store.scheduledSplitForDate(date)
   store.startWorkout(date, split?.id)
+  loggerOpen.value=true
 }
 
 function addSet(exIndex: number) {
   const ex = store.state.draft?.exercises[exIndex]; if (!ex) return
   const last = ex.sets.at(-1)
-  ex.sets.push({ id: crypto.randomUUID(), weight: last?.weight ?? 0, reps: last?.reps ?? 8, rir: null, warmup: false, done: false, skipped: false })
+  ex.sets.push({ id: newId(), weight: last?.weight ?? 0, reps: last?.reps ?? 8, rir: null, warmup: false, done: false, skipped: false })
 }
 
 function onSetSkipped(set: LoggedSet) {
@@ -125,9 +151,9 @@ function addExerciseToDraft(exerciseId: string) {
   if (draft.exercises.some(e => e.exerciseId === exerciseId)) return
   const sug = store.suggestion(ex.id, ex.equipment)
   draft.exercises.push({
-    id: crypto.randomUUID(), exerciseId: ex.id, name: ex.name, equipment: ex.equipment, variation: ex.variation,
+    id: newId(), exerciseId: ex.id, name: ex.name, equipment: ex.equipment, variation: ex.variation,
     loadMode: ex.loadMode, loadBasis: ex.loadBasis, unilateral: ex.unilateral, credits: JSON.parse(JSON.stringify(ex.credits)),
-    sets: [{ id: crypto.randomUUID(), weight: sug?.load ?? 0, reps: sug?.reps ?? ex.repMin, rir: null, warmup:false, done:false, skipped:false }]
+    sets: [{ id: newId(), weight: sug?.load ?? 0, reps: sug?.reps ?? ex.repMin, rir: null, warmup:false, done:false, skipped:false }]
   })
 }
 
@@ -206,11 +232,10 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
 </script>
 
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="{'training-section':section==='training'}">
     <header class="topbar">
       <div>
-        <div class="brand">Lift<span>Cycle</span></div>
-        <div class="tagline">Progressive overload, without the spreadsheet</div>
+        <a class="brand homebase-brand" href="#/rhythm" @click="section='rhythm'"><span class="brand-mark" aria-hidden="true">h</span>Homebase</a>
       </div>
       <div class="account-cluster">
         <div class="sync-pill" :class="store.syncStatus">
@@ -260,21 +285,27 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
       <div class="auth-row"><button class="ghost" @click="store.exportState()">Export backup</button><button class="ghost" @click="store.useCloudVersion()">Keep cloud version</button><button class="primary" @click="store.useThisDevice()">Keep this device</button></div>
     </section>
     <div v-if="store.syncError || toastError" class="error-note">{{ store.syncError || toastError }}</div>
-    <nav class="tabs">
+    <nav class="homebase-nav" aria-label="Homebase features">
+      <button :class="{active:section==='rhythm'}" :aria-current="section==='rhythm'?'page':undefined" @click="section='rhythm'"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2"/></svg>Rhythm<span>Your day & week</span></button>
+      <button :class="{active:section==='training'}" :aria-current="section==='training'?'page':undefined" @click="section='training'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14m12-14v14M3 8v8m18-8v8M6 12h12"/></svg>Training<span>LiftCycle</span></button>
+      <button v-if="store.state.draft" class="resume-session" @click="loggerOpen=true">Resume {{ store.state.draft.name }}</button>
+    </nav>
+    <RhythmView v-if="section==='rhythm' && store.hydrated" v-model:selected-date="selectedDate" @workout="openFromRhythm" @training="section='training';tab='progress'" />
+    <nav v-if="section==='training'" class="tabs" aria-label="Training pages">
       <button v-for="t in ['schedule','cycle','exercises','history','progress']" :key="t" :class="{active:tab===t}" @click="tab=t as any">{{ t[0].toUpperCase()+t.slice(1) }}</button>
     </nav>
 
-    <main>
+    <main v-if="section==='training'">
       <section v-if="tab==='schedule'" class="page">
         <div class="section-head">
           <div>
-            <div class="eyebrow">TRAIN ON YOUR SCHEDULE</div>
-            <h1>Your week</h1>
-            <p>Apply a cycle to place Push, Pull, and Legs on your calendar. Empty days can be filled later.</p>
+            <div class="eyebrow">LIFTCYCLE · TRAINING</div>
+            <h1>Your training week</h1>
+            <p>Your cycle, workouts, and progress—connected to Rhythm.</p>
           </div>
           <div class="head-actions">
             <button class="ghost" @click="moveWeek(-1)">←</button>
-            <button class="ghost" @click="weekAnchor=new Date()">Today</button>
+            <button class="ghost" @click="weekAnchor=new Date();selectedDate=dateKey()">Today</button>
             <button class="ghost" @click="moveWeek(1)">→</button>
           </div>
         </div>
@@ -291,7 +322,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
             </template>
             <template v-else-if="workoutForDate(iso(d))">
               <div class="completed-badge">✓ Logged</div>
-              <button class="ghost full" @click.stop="store.editWorkout(workoutForDate(iso(d))!.id); tab='history'">View / edit</button>
+              <button class="ghost full" @click.stop="store.editWorkout(workoutForDate(iso(d))!.id); loggerOpen=true; tab='history'">View / edit</button>
             </template>
             <template v-else-if="scheduledName(iso(d))!=='Rest'">
               <button class="primary full" @click.stop="startFor(iso(d))">Log workout</button>
@@ -302,7 +333,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
         </div>
 
         <section v-if="workoutForDate(selectedDate) && workoutForDate(selectedDate)!.status !== 'skipped'" class="panel" style="margin-top: 1rem">
-          <div class="panel-head"><div><h2>{{ workoutForDate(selectedDate)!.name }} · {{ selectedDate }}</h2><p>Actual logged working sets, not plan targets. Warmups are excluded.</p></div><button class="ghost" @click="store.editWorkout(workoutForDate(selectedDate)!.id); tab='history'">Edit workout</button></div>
+          <div class="panel-head"><div><h2>{{ workoutForDate(selectedDate)!.name }} · {{ selectedDate }}</h2><p>Actual logged working sets, not plan targets. Warmups are excluded.</p></div><button class="ghost" @click="store.editWorkout(workoutForDate(selectedDate)!.id); loggerOpen=true; tab='history'">Edit workout</button></div>
           <div v-for="ex in workoutForDate(selectedDate)!.exercises" :key="ex.id" class="plan-item">
             <div><strong>{{ ex.name }}</strong><small>{{ ex.equipment }}{{ ex.loadBasis==='per-hand' ? ' · per hand' : '' }}</small></div>
             <div style="text-align:right"><strong>{{ actualExerciseSummary(ex, workoutForDate(selectedDate)!.unit).work }}</strong><small>{{ actualExerciseSummary(ex, workoutForDate(selectedDate)!.unit).note }}</small></div>
@@ -373,8 +404,8 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
             <div><strong>{{ w.name }}</strong><span>{{ w.date }}</span></div>
             <div>{{ w.status === 'skipped' ? 'Skipped' : w.exercises.reduce((n,e)=>n+e.sets.filter(s=>s.done&&!s.warmup&&!s.skipped).length,0) + ' work sets' }}</div>
             <div class="row-actions">
-              <template v-if="w.status==='skipped'"><button class="primary small" @click="store.resumeSkippedWorkout(w.id)">Log instead</button><button class="ghost small" @click="store.deleteWorkout(w.id)">Undo skip</button></template>
-              <template v-else><button class="ghost small" @click="store.editWorkout(w.id)">Edit</button><button class="danger small" @click="store.deleteWorkout(w.id)">Delete</button></template>
+              <template v-if="w.status==='skipped'"><button class="primary small" @click="store.resumeSkippedWorkout(w.id);loggerOpen=true">Log instead</button><button class="ghost small" @click="store.deleteWorkout(w.id)">Undo skip</button></template>
+              <template v-else><button class="ghost small" @click="store.editWorkout(w.id);loggerOpen=true">Edit</button><button class="danger small" @click="store.deleteWorkout(w.id)">Delete</button></template>
             </div>
           </article>
           <div v-if="!store.state.history.length" class="empty">Your completed sessions will appear here.</div>
@@ -382,7 +413,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
       </section>
 
       <section v-else class="page">
-        <div class="section-head"><div><div class="eyebrow">WEEKLY MUSCLE SETS</div><h1>Progress</h1><p>Warmups are excluded. Direct and partial set credits are tracked separately.</p></div><div class="head-actions"><button class="ghost" @click="moveWeek(-1)">←</button><button class="ghost" @click="weekAnchor=new Date()">This week</button><button class="ghost" @click="moveWeek(1)">→</button></div></div>
+        <div class="section-head"><div><div class="eyebrow">WEEKLY MUSCLE SETS</div><h1>Progress</h1><p>Warmups are excluded. Direct and partial set credits are tracked separately.</p></div><div class="head-actions"><button class="ghost" @click="moveWeek(-1)">←</button><button class="ghost" @click="weekAnchor=new Date();selectedDate=dateKey()">This week</button><button class="ghost" @click="moveWeek(1)">→</button></div></div>
         <div class="progress-hero">
           <article class="metric-card muscle-metric">
             <div class="metric-top"><span class="metric-icon">◎</span><span class="metric-tag">WEEKLY PROGRESS</span></div>
@@ -412,9 +443,9 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
       </section>
     </main>
 
-    <section v-if="store.state.draft" class="workout-drawer">
+    <section v-if="store.state.draft && loggerOpen" class="workout-drawer" role="dialog" aria-modal="true" aria-label="Log workout">
       <div class="drawer-card">
-        <div class="drawer-head"><div><div class="eyebrow">LOG WORKOUT</div><input class="workout-title" v-model="store.state.draft.name" /><input v-model="store.state.draft.date" type="date" /></div><button class="ghost" @click="store.state.draft=null">Close</button></div>
+        <div class="drawer-head"><div><div class="eyebrow">LOG WORKOUT</div><input class="workout-title" v-model="store.state.draft.name" /><input v-model="store.state.draft.date" type="date" /></div><button class="ghost" @click="loggerOpen=false">Close</button></div>
         <article v-for="(ex,ei) in store.state.draft.exercises" :key="ex.id" class="log-exercise">
           <div class="log-ex-head">
             <div class="log-ex-main">
@@ -454,7 +485,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
     </section>
 
     <footer>
-      <div><strong>Data</strong><span>{{ store.userId ? 'Cloud sync + local cache' : 'Saved in this browser' }}</span></div>
+      <div><strong>Homebase</strong><span>{{ store.userId ? 'Private cloud sync + local cache' : 'Saved in this browser' }}</span></div>
       <div class="footer-actions"><input ref="importInput" hidden type="file" accept="application/json" @change="importJson" /><button class="ghost small" @click="importInput?.click()">Import JSON</button><button class="ghost small" @click="store.exportState()">Export JSON</button></div>
     </footer>
   </div>

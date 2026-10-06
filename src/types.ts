@@ -1,3 +1,4 @@
+import type { RhythmState } from './rhythm'
 export type MuscleCredits = Record<string, number>
 
 export interface Exercise {
@@ -48,6 +49,7 @@ export interface Workout {
   exercises: LoggedExercise[]
 }
 export interface LiftCycleState {
+  rhythm?: RhythmState
   schemaVersion: number
   unit: 'lb' | 'kg'
   library: Exercise[]

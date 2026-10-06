@@ -1,6 +1,19 @@
 node_modules
 dist
-.env.local
+.env*
+!.env.example
+# This file contains ONLY the two allowlisted public browser settings.
+!.env.production
+.vercel/
+private/
+credentials/
+*.pem
+*.key
 .DS_Store
 liftcycle-*.json
+homebase-*.json
+rhythm-*.json
+*backup*.json
 *.local.json
+
+*.tsbuildinfo
