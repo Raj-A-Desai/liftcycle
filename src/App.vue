@@ -31,7 +31,8 @@ function openFromRhythm(date: string, id?: string) {
   else startFor(date)
   loggerOpen.value=true
 }
-watch(()=>store.state.draft?.id,id=>{if(id)loggerOpen.value=true})
+// Restoring a local or synced draft should never interrupt the landing page.
+watch(()=>store.state.draft?.id,id=>{if(!id)loggerOpen.value=false})
 const showExerciseForm = ref(false)
 const editingExerciseId = ref<string | null>(null)
 const authEmail = ref('')
@@ -98,6 +99,14 @@ function startFor(date: string) {
   const split = store.scheduledSplitForDate(date)
   store.startWorkout(date, split?.id)
   loggerOpen.value=true
+}
+
+function startSelectedSplit(event: Event) {
+  const select = event.target as HTMLSelectElement
+  if (!select.value) return
+  store.startWorkout(selectedDate.value, select.value)
+  loggerOpen.value=true
+  select.value=''
 }
 
 function addSet(exIndex: number) {
@@ -342,7 +351,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
 
         <div class="quick-log">
           <input v-model="selectedDate" type="date" />
-          <select @change="($event.target as HTMLSelectElement).value && store.startWorkout(selectedDate, ($event.target as HTMLSelectElement).value)">
+          <select @change="startSelectedSplit">
             <option value="">Log another workout…</option>
             <option v-for="s in store.state.plan.splits" :key="s.id" :value="s.id">{{ s.name }}</option>
           </select>
