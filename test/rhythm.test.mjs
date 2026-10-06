@@ -70,3 +70,25 @@ test('existing current goals and completed duplicates take precedence over impor
   assert.equal(next[0].text,'same   task')
   assert.deepEqual(weeks['2026-10-11'],[{text:'Future goal',done:false}])
 })
+
+test('deleted carried goals remain absent after reload, next week and repeat import; Undo restores them',async()=>{
+  const {carryGoalsForward,deleteWeeklyGoal}=await import('../src/rhythm.ts')
+  const r=emptyRhythm();r.weeklyWins['2026-09-27']=[{text:'Duplicate goal',done:false},{text:'Keep this goal',done:false}]
+  r.weeklyWins['2026-10-04']=carryGoalsForward(r.weeklyWins,'2026-10-04')
+  deleteWeeklyGoal(r.weeklyWins,'2026-10-04',0)
+  assert.equal(r.weeklyWins['2026-09-27'][0].deleted,undefined)
+  assert.equal(carryGoalsForward(r.weeklyWins,'2026-10-04').filter(g=>!g.deleted).length,1)
+  const imported=mergeRhythm(r,{version:1,progress:{weeklyWins:r.weeklyWins},meetings:[],calendarSnapshot:{}})
+  assert.deepEqual(carryGoalsForward(imported.weeklyWins,'2026-10-11').map(g=>g.text),['Keep this goal'])
+  r.weeklyWins['2026-10-04'][0].deleted=false
+  assert.equal(carryGoalsForward(r.weeklyWins,'2026-10-11').length,2)
+})
+
+test('deleting one legacy duplicate preserves the other goal and its future carryover',async()=>{
+  const {carryGoalsForward,deleteWeeklyGoal}=await import('../src/rhythm.ts')
+  const weeks={'2026-10-04':[{text:'Keep one copy',done:false},{text:'Keep one copy',done:false}]}
+  weeks['2026-10-04']=carryGoalsForward(weeks,'2026-10-04')
+  deleteWeeklyGoal(weeks,'2026-10-04',1)
+  assert.equal(weeks['2026-10-04'].filter(g=>!g.deleted).length,1)
+  assert.deepEqual(carryGoalsForward(weeks,'2026-10-11').map(g=>g.text),['Keep one copy'])
+})

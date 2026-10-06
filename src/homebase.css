@@ -92,3 +92,10 @@ input::placeholder, textarea::placeholder { color: #afbdd4; opacity: 1; }
   .entry-time small { font-size: 11px; }
   .entry-copy > small { font-size: 12px; }
 }
+
+.goal-delete { display:grid;place-items:center;flex:0 0 28px;width:28px;height:32px;padding:4px;border:1px solid transparent;border-radius:6px;background:transparent;color:#b8c4da; }
+.goal-delete svg { width:17px;height:17px;fill:none;stroke:currentColor;stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round; }
+.goal-delete:hover { color:#ffc5c2;background:#483142;border-color:#a87384; }
+.goal-delete-notice { display:flex;justify-content:space-between;align-items:center;gap:12px;margin-top:12px;font-size:13px;color:#b8c4da; }
+.rhythm-goal { column-gap:7px; }
+@media(max-width:560px) { .goal-delete { height:36px;flex-basis:30px;width:30px; } }

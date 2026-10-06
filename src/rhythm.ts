@@ -1,7 +1,7 @@
 import type { Workout } from './types'
 
 export type DayLoad = 'red' | 'yellow' | 'green' | 'off'
-export interface Goal { text: string; done: boolean; id?: string; carriedFrom?: string }
+export interface Goal { text: string; done: boolean; id?: string; carriedFrom?: string; deleted?: boolean }
 export interface Meeting { id: string; title: string; date: string; start: number; end: number }
 export interface CalendarEvent { id: string; title: string; detail: string; at: number; endAt: number; kind: string; allDay?: boolean }
 export interface RhythmState {
@@ -53,7 +53,7 @@ export function carryGoalsForward(weeks: Record<string, Goal[]>, currentWeek: st
   const currentText = new Set(current.map(g => textKey(g.text)).filter(Boolean))
   for (const { goal, week } of latest.values()) {
     const text = textKey(goal.text)
-    if (week >= currentWeek || goal.done || !text || currentIds.has(goal.id) || currentText.has(text)) continue
+    if (week >= currentWeek || goal.done || goal.deleted || !text || currentIds.has(goal.id) || currentText.has(text)) continue
     const carried = { ...goal, carriedFrom: goal.carriedFrom || week }
     const blank = current.findIndex(g => !g.text.trim() && !g.id)
     if (blank === -1) current.push(carried)
@@ -61,6 +61,17 @@ export function carryGoalsForward(weeks: Record<string, Goal[]>, currentWeek: st
     currentIds.add(goal.id); currentText.add(text)
   }
   return current
+}
+export function deleteWeeklyGoal(weeks: Record<string, Goal[]>, week: string, index: number) {
+  const goal = weeks[week]?.[index]
+  if (!goal || !goal.text.trim() || goal.deleted) return
+  // Keep a tombstone so neither historical carryover nor repeat imports revive it.
+  const normalized = carryGoalsForward(weeks, week)
+  const id = normalized[index]?.id || `goal:${week}:${index}`
+  const sibling = weeks[week]!.findIndex((g,i)=>i!==index && !g.deleted && g.text.trim() && normalized[i]?.id===id)
+  // Older duplicate rows can share an identity. Keep that identity on the survivor.
+  if (sibling >= 0) weeks[week]![sibling]!.id = id
+  weeks[week]![index] = { ...goal, id: sibling >= 0 ? `deleted:${week}:${index}:${id}` : id, deleted: true }
 }
 export function formatDate(key: string, options: Intl.DateTimeFormatOptions) { return new Date(key + 'T12:00:00Z').toLocaleDateString('en-US', { ...options, timeZone: 'UTC' }) }
 export function hourNow(date = new Date()) {
