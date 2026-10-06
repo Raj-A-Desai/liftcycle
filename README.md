@@ -1,4 +1,4 @@
-# LiftCycle
+# Homebase
 
 Personal resistance-training tracker with progressive-overload guidance, mesocycle planning, editable history, and weekly muscle-set credits.
 
@@ -50,7 +50,7 @@ a confirmed sign-in and deployed site.
 
 ## Homebase deployment
 
-**Homebase** is the Vercel project that hosts the **LiftCycle** application. We intentionally retain the existing `Raj-A-Desai/liftcycle` GitHub repository and the dedicated `liftcycle` Supabase project; they do not need renaming. Do not create a second Vercel project for LiftCycle.
+**Homebase** is the personal platform that brings **Rhythm** planning and **LiftCycle** training together. We intentionally retain the existing `Raj-A-Desai/liftcycle` GitHub repository and the dedicated `liftcycle` Supabase project; they do not need renaming. Do not create a second Vercel project for LiftCycle.
 
 In the Vercel `homebase` project, connect `Raj-A-Desai/liftcycle`, use production branch `main`, root directory `.`, and the Vite settings in `vercel.json` (`npm run build`, output `dist`). For magic-link sign-in, set Homebase's production URL in Supabase Authentication > URL Configuration as the Site URL and an allowed redirect URL (add preview domains when testing those).
 
@@ -93,3 +93,7 @@ Validation: `npm test` covers Training projections, skipped/draft/completed stat
 ### Weekly goal carryover
 
 Opening the current Eastern-time week carries unfinished goals from earlier weeks into it, including weeks missed while away. Completed goals stay in their recorded weeks. Stable goal identities prevent duplicates and preserve completion after renaming or clearing a carried goal. Earlier week snapshots remain unchanged; carried goals show their original week. Browsing past or future weeks does not generate copies. These records use the existing private Homebase sync.
+
+## Visual identity
+
+See [BRAND.md](BRAND.md) for shared design tokens, self-hosted Noto Sans, logo variants, and app-icon usage.

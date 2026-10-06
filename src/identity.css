@@ -1,0 +1,122 @@
+/* Shared product identity and component states. Layouts remain module-owned. */
+body { background: var(--canvas); min-width: 0; }
+button, input, select, textarea { font-family: var(--font-ui); }
+button, strong, b { font-weight: var(--weight-semibold); }
+input, select, textarea { font-weight: var(--weight-regular); }
+h1, h2, h3 { font-weight: var(--weight-semibold); }
+h1 { letter-spacing: -.035em; }
+h2, h3 { letter-spacing: -.02em; }
+
+.homebase-brand { display: inline-flex; text-decoration: none; flex-shrink: 0; }
+.homebase-identity { display: inline-flex; align-items: center; gap: var(--space-3); }
+.homebase-mark { display: block; flex: 0 0 auto; width: 40px; height: 40px; }
+.homebase-wordmark { color: var(--brand-lavender); font-size: 28px; font-weight: var(--weight-medium); line-height: 1.2; letter-spacing: -.035em; }
+.footer-wordmark { font-weight: var(--weight-medium); letter-spacing: -.02em; }
+.homebase-nav > button { font-weight: var(--weight-medium); transition: background var(--transition), border-color var(--transition); }
+.homebase-nav > button:hover { background: var(--surface); }
+.homebase-nav > button.active { background: var(--accent-surface); color: var(--brand-lavender); border-color: var(--primary-border); }
+.homebase-nav button > span { font-weight: var(--weight-regular); color: var(--text-muted); }
+.homebase-nav .resume-session { color: var(--brand-lavender); border-color: var(--lavender-border); }
+.tabs { background: var(--surface-low); box-shadow: none; }
+.tabs button { color: var(--text-muted); font-weight: var(--weight-medium); }
+.tabs button.active { background: var(--surface-raised); color: var(--brand-lavender); box-shadow: inset 0 0 0 1px var(--lavender-border); }
+.primary { background: var(--primary); border-color: var(--primary-border); color: var(--primary-text); box-shadow: none; }
+.primary:hover { background: var(--primary-hover); }
+.ghost { background: var(--surface-low); border-color: var(--border-control); color: var(--text); }
+.ghost:hover { background: var(--surface-hover); border-color: var(--accent-text); }
+.text-btn { color: var(--accent-text); font-weight: var(--weight-medium); }
+.danger { background: var(--danger-surface); border-color: var(--danger-border); color: var(--danger-text); }
+.eyebrow { color: var(--brand-lavender); font-weight: var(--weight-medium); letter-spacing: .12em; }
+.cloud-card, .rhythm-import { background: var(--surface); border-color: var(--border); }
+.auth-card strong { font-size: 16px; font-weight: var(--weight-medium); }
+.auth-fields { min-width: 0; }
+.auth-stack { min-width: 0; width: 100%; }
+.auth-fields input { min-width: 0; }
+.sync-pill { background: var(--surface-low); }
+.sync-pill .dot { background: var(--text-muted); }
+.sync-pill.syncing .dot { background: var(--accent-text); }
+.sync-pill.offline .dot { background: var(--warning); }
+.section-head h1, .module-heading h1 { font-weight: var(--weight-semibold); letter-spacing: -.035em; line-height: 1.25; }
+.day-panel-head, .rhythm-toolbar { background: var(--surface-raised); }
+.rhythm-card { background: var(--surface); }
+.goals-card { border-top-color: var(--brand-lavender); }
+.goal-index, .count-accent { color: var(--brand-lavender); }
+.goal-origin { color: var(--text-muted); }
+.rhythm-day.selected { background: var(--selected-surface); border-color: var(--accent-text); }
+.rhythm-day-number, .day-panel-head h2 { font-weight: var(--weight-medium); }
+.entry-time strong, .entry-copy > strong { font-weight: var(--weight-medium); }
+.rhythm-entry.current { background: var(--accent-surface); box-shadow: inset 3px 0 var(--accent-text); }
+.rhythm-entry.current .entry-time strong, .entry-source { color: var(--accent-text); }
+.rhythm-time-rail i, .rhythm-time-rail b { background: var(--accent-text); }
+.rhythm-entry.calendar .entry-dot, .rhythm-entry.meeting .entry-dot { border-color: var(--brand-lavender); }
+.rhythm-entry.calendar, .rhythm-entry.meeting { background: var(--lavender-surface); }
+.rhythm-check:hover { border-color: var(--accent-text); }
+.workout-link { background: var(--accent-surface); border-color: var(--primary-border); color: var(--text); }
+.day-card.today { border-color: var(--accent-text); box-shadow: none; }
+.rest, .empty, .empty-small { color: var(--text-muted); }
+.empty, .empty-small { border-color: var(--border); }
+.scheduled, .workout-title { font-weight: var(--weight-semibold); }
+.workout-summary { display: flex; align-items: baseline; justify-content: flex-end; flex-wrap: wrap; gap: 4px 8px; font-variant-numeric: tabular-nums; }
+.workout-summary small { color: var(--text-muted); }
+.day-card.is-skipped, .history-card.skipped { background: var(--skipped-surface); opacity: 1; }
+.skipped-badge, .day-card.is-skipped .scheduled { color: var(--skipped-text); }
+.completed-badge { color: var(--success-text); background: var(--success-surface); border-color: var(--success-border); }
+.drawer-card, .drawer-head, .drawer-actions { background: var(--surface-low); }
+.workout-drawer { background: var(--overlay); }
+.drawer-card { box-shadow: var(--shadow); }
+.workout-title { background: transparent; }
+.log-exercise { background: var(--surface-raised); border-color: var(--border-control); box-shadow: none; }
+.log-ex-head .last-performance { background: var(--lavender-surface); border-color: var(--lavender-border); }
+.log-ex-head .last-performance > span, .log-ex-head .last-performance::before { color: var(--brand-lavender); }
+.log-ex-head .today-guidance { background: var(--accent-surface); border-color: var(--primary-border); }
+.log-ex-head .today-guidance > span { color: var(--accent-text); }
+.log-ex-head .today-guidance::before { background: var(--accent-text); }
+.log-ex-head .last-performance strong, .log-ex-head .today-guidance .suggestion { font-weight: var(--weight-medium); line-height: 1.55; color: var(--text); }
+.set-row, .set-head, .entry-time, .rhythm-day-number, .count-accent, .metric-number, .muscle-numbers, .history-card, .exercise-guidance, .rhythm-week-controls { font-variant-numeric: tabular-nums; }
+.set-row input[type=number] { appearance: textfield; -moz-appearance: textfield; }
+.set-row input[type=number]::-webkit-inner-spin-button, .set-row input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.rir-not-applicable { color: var(--text-muted); }
+.metric-card { background: var(--surface); border-color: var(--border); box-shadow: none; border-radius: var(--radius-card); }
+.metric-card:after { display: none; }
+.metric-label, .metric-tag, .metric-description, .metric-number span { color: var(--text-secondary); }
+.metric-icon, .consistency-metric .metric-icon { color: var(--brand-lavender); border-color: var(--lavender-border); }
+.metric-number, .muscle-numbers > span { color: var(--text); font-weight: var(--weight-medium); letter-spacing: -.04em; }
+.metric-track > div, .muscle-track > div { background: var(--accent-text); }
+.muscle-card { background: var(--surface); }
+.muscle-card.hit { background: var(--success-surface); border-color: var(--success-border); }
+.muscle-card.hit .muscle-track > div { background: var(--success); }
+.target-status { color: var(--text-muted); font-weight: var(--weight-medium); }
+.muscle-card.hit .target-status { color: var(--success-text); }
+.muscle-card-footer, .muscle-numbers small, .volume-head p { color: var(--text-muted); }
+.target-caption { color: var(--brand-lavender); background: var(--lavender-surface); border-color: var(--lavender-border); }
+input:focus, select:focus, textarea:focus { border-color: var(--focus-ring); box-shadow: none; }
+button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, summary:focus-visible { outline: 2px solid var(--focus-ring); outline-offset: 3px; }
+::selection { background: var(--brand-lavender); color: var(--canvas); }
+
+@media (min-width: 901px) { .auth-card { grid-template-columns: minmax(0, 1fr) minmax(340px, 470px); } }
+@media (max-width: 620px) {
+  .homebase-mark { width: 34px; height: 34px; }
+  .homebase-wordmark { font-size: 24px; }
+  .homebase-identity { gap: var(--space-2); }
+  .topbar > div:first-child { min-width: 0; }
+  .tabs button { min-width: 0; padding: 10px 6px; font-size: 11px; }
+  .homebase-nav > button { padding: 10px 12px; }
+  .account-cluster { max-width: 45%; }
+  input, select, textarea, .rhythm-goal textarea { font-size: 16px; }
+  .session-variation input { font-size: 16px; }
+  .set-row input { font-size: 16px; }
+  .rhythm-goal { padding: 12px 10px; }
+  .drawer-card { max-height: 96dvh; padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+  .app-shell { padding-bottom: max(24px, env(safe-area-inset-bottom)); }
+  .panel-head { align-items: flex-start; gap: var(--space-3); }
+  .panel-head > button { flex-shrink: 0; }
+}
+
+@media (max-width: 380px) {
+  .drawer-card { padding: 10px; padding-bottom: max(12px, env(safe-area-inset-bottom)); }
+  .log-exercise { padding: 10px; }
+  .set-head, .set-row { grid-template-columns: 12px minmax(42px, 1fr) minmax(36px, .85fr) minmax(30px, .7fr) 40px 26px 28px; gap: 3px; }
+  .set-row input { padding: 8px 3px; }
+  .set-head { font-size: 9px; }
+  .panel-head { flex-direction: column; }
+}

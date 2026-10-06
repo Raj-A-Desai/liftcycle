@@ -3,6 +3,7 @@ import { newId } from './id'
 import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useLiftStore } from './store'
 import RhythmView from './components/RhythmView.vue'
+import HomebaseBrand from './components/HomebaseBrand.vue'
 import { dateKey } from './rhythm'
 import { cloudConfigured } from './supabase'
 import type { Exercise, LoggedSet, PlanItem } from './types'
@@ -244,7 +245,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
   <div class="app-shell" :class="{'training-section':section==='training'}">
     <header class="topbar">
       <div>
-        <a class="brand homebase-brand" href="#/rhythm" @click="section='rhythm'"><span class="brand-mark" aria-hidden="true">h</span>Homebase</a>
+        <a class="homebase-brand" href="#/rhythm" aria-label="Homebase home" @click="section='rhythm'"><HomebaseBrand /></a>
       </div>
       <div class="account-cluster">
         <div class="sync-pill" :class="store.syncStatus">
@@ -263,8 +264,8 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
       </div>
       <div class="auth-stack">
         <div class="auth-fields">
-          <input v-model="authEmail" type="email" autocomplete="email" placeholder="Email" />
-          <input v-model="authPassword" type="password" autocomplete="current-password" placeholder="Password" @keyup.enter="signInWithPassword" />
+          <input v-model="authEmail" type="email" autocomplete="email" placeholder="Email" aria-label="Email" />
+          <input v-model="authPassword" type="password" autocomplete="current-password" placeholder="Password" aria-label="Password" @keyup.enter="signInWithPassword" />
         </div>
         <div class="auth-actions">
           <button class="primary" @click="signInWithPassword">Sign in</button>
@@ -296,19 +297,19 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
     <div v-if="store.syncError || toastError" class="error-note">{{ store.syncError || toastError }}</div>
     <nav class="homebase-nav" aria-label="Homebase features">
       <button :class="{active:section==='rhythm'}" :aria-current="section==='rhythm'?'page':undefined" @click="section='rhythm'"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2"/></svg>Rhythm<span>Your day & week</span></button>
-      <button :class="{active:section==='training'}" :aria-current="section==='training'?'page':undefined" @click="section='training'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14m12-14v14M3 8v8m18-8v8M6 12h12"/></svg>Training<span>LiftCycle</span></button>
+      <button :class="{active:section==='training'}" :aria-current="section==='training'?'page':undefined" @click="section='training'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14m12-14v14M3 8v8m18-8v8M6 12h12"/></svg>LiftCycle<span>Your training</span></button>
       <button v-if="store.state.draft" class="resume-session" @click="loggerOpen=true">Resume {{ store.state.draft.name }}</button>
     </nav>
     <RhythmView v-if="section==='rhythm' && store.hydrated" v-model:selected-date="selectedDate" @workout="openFromRhythm" @training="section='training';tab='progress'" />
     <nav v-if="section==='training'" class="tabs" aria-label="Training pages">
-      <button v-for="t in ['schedule','cycle','exercises','history','progress']" :key="t" :class="{active:tab===t}" @click="tab=t as any">{{ t[0].toUpperCase()+t.slice(1) }}</button>
+      <button v-for="t in ['schedule','cycle','exercises','history','progress']" :key="t" :class="{active:tab===t}" :aria-current="tab===t?'page':undefined" @click="tab=t as any">{{ t[0].toUpperCase()+t.slice(1) }}</button>
     </nav>
 
     <main v-if="section==='training'">
       <section v-if="tab==='schedule'" class="page">
         <div class="section-head">
           <div>
-            <div class="eyebrow">LIFTCYCLE · TRAINING</div>
+            <div class="eyebrow">LIFTCYCLE</div>
             <h1>Your training week</h1>
             <p>Your cycle, workouts, and progress—connected to Rhythm.</p>
           </div>
@@ -345,7 +346,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
           <div class="panel-head"><div><h2>{{ workoutForDate(selectedDate)!.name }} · {{ selectedDate }}</h2><p>Actual logged working sets, not plan targets. Warmups are excluded.</p></div><button class="ghost" @click="store.editWorkout(workoutForDate(selectedDate)!.id); loggerOpen=true; tab='history'">Edit workout</button></div>
           <div v-for="ex in workoutForDate(selectedDate)!.exercises" :key="ex.id" class="plan-item">
             <div><strong>{{ ex.name }}</strong><small>{{ ex.equipment }}{{ ex.loadBasis==='per-hand' ? ' · per hand' : '' }}</small></div>
-            <div style="text-align:right"><strong>{{ actualExerciseSummary(ex, workoutForDate(selectedDate)!.unit).work }}</strong><small>{{ actualExerciseSummary(ex, workoutForDate(selectedDate)!.unit).note }}</small></div>
+            <div class="workout-summary"><strong>{{ actualExerciseSummary(ex, workoutForDate(selectedDate)!.unit).work }}</strong><small>{{ actualExerciseSummary(ex, workoutForDate(selectedDate)!.unit).note }}</small></div>
           </div>
         </section>
 
@@ -494,7 +495,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
     </section>
 
     <footer>
-      <div><strong>Homebase</strong><span>{{ store.userId ? 'Private cloud sync + local cache' : 'Saved in this browser' }}</span></div>
+      <div><strong class="footer-wordmark">homebase</strong><span>{{ store.userId ? 'Private cloud sync + local cache' : 'Saved in this browser' }}</span></div>
       <div class="footer-actions"><input ref="importInput" hidden type="file" accept="application/json" @change="importJson" /><button class="ghost small" @click="importInput?.click()">Import JSON</button><button class="ghost small" @click="store.exportState()">Export JSON</button></div>
     </footer>
   </div>

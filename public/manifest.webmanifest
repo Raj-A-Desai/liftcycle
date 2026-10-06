@@ -1,0 +1,16 @@
+{
+  "id": "/",
+  "name": "Homebase",
+  "short_name": "Homebase",
+  "description": "Your day, goals, and training in one place.",
+  "start_url": "/#/rhythm",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#13162A",
+  "theme_color": "#13162A",
+  "lang": "en",
+  "icons": [
+    { "src": "/icons/app.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}
