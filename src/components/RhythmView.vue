@@ -2,7 +2,7 @@
 import { newId } from '../id'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useLiftStore } from '../store'
-import { dateKey, entriesFor, formatDate, formatHour, hourNow, isDone, loadFor, mergeRhythm, shiftDay, weekFor, workoutEntries } from '../rhythm'
+import { carryGoalsForward, dateKey, entriesFor, formatDate, formatHour, hourNow, isDone, loadFor, mergeRhythm, shiftDay, weekFor, workoutEntries } from '../rhythm'
 import type { Goal, Meeting, TimelineEntry } from '../rhythm'
 const props = defineProps<{ selectedDate: string }>()
 const emit = defineEmits<{ 'update:selectedDate': [value: string]; workout: [date: string, id?: string]; training: [] }>()
@@ -13,6 +13,12 @@ const now = ref(new Date())
 const today = computed(()=>dateKey(now.value))
 const week = computed(()=>weekFor(selected.value))
 const weekKey = computed(()=>week.value[0]!)
+const currentWeek = computed(()=>weekFor(today.value)[0]!)
+watch([currentWeek, weekKey, () => rhythm.value.weeklyWins, () => store.syncStatus], () => {
+  if (weekKey.value !== currentWeek.value || store.syncStatus === 'conflict') return
+  const next = carryGoalsForward(rhythm.value.weeklyWins, currentWeek.value)
+  if (JSON.stringify(next) !== JSON.stringify(rhythm.value.weeklyWins[currentWeek.value] || [])) rhythm.value.weeklyWins[currentWeek.value] = next
+}, { deep: true, immediate: true })
 const weekLabel = computed(()=>`${formatDate(week.value[0]!,{month:'short',day:'numeric'})} – ${formatDate(week.value[6]!,{month:'short',day:'numeric',year:'numeric'})}`)
 const workouts = (key: string) => workoutEntries(key,store.scheduledSplitForDate(key),store.state.history,store.state.draft)
 const entries = computed(()=>entriesFor(rhythm.value,selected.value,workouts(selected.value)))
@@ -147,7 +153,7 @@ onBeforeUnmount(()=>{window.clearInterval(timer);window.clearInterval(transferTi
       </section>
       <aside class="rhythm-sidebar">
         <section class="rhythm-card goals-card"><div class="rhythm-card-head"><div><div class="eyebrow">MAKE THIS WEEK COUNT</div><h2>Weekly goals</h2></div><strong class="count-accent">{{ goalsDone }}<small> / {{ meaningfulGoals.length }}</small></strong></div><div class="rhythm-mini-track goals-track"><i :style="{width:(meaningfulGoals.length?goalsDone/meaningfulGoals.length*100:0)+'%'}"></i></div>
-          <div class="rhythm-goals"><div v-for="(goal,i) in goals" :key="weekKey+'-'+i" class="rhythm-goal" :class="{done:goal.done}"><span class="goal-index">{{ String(i+1).padStart(2,'0') }}</span><textarea :value="goal.text" :aria-label="'Weekly goal '+(i+1)" placeholder="Add a weekly goal" rows="2" maxlength="4000" @input="setGoal(i,'text',($event.target as HTMLTextAreaElement).value)"></textarea><button class="rhythm-check" :class="{checked:goal.done}" :disabled="!goal.text.trim()" :aria-label="'Complete weekly goal '+(i+1)" :aria-pressed="goal.done" @click="setGoal(i,'done',!goal.done)">{{ goal.done?'✓':'' }}</button></div></div>
+          <div class="rhythm-goals"><div v-for="(goal,i) in goals" :key="weekKey+'-'+i" class="rhythm-goal" :class="{done:goal.done}"><span class="goal-index">{{ String(i+1).padStart(2,'0') }}</span><div class="goal-copy"><textarea :value="goal.text" :aria-label="'Weekly goal '+(i+1)" placeholder="Add a weekly goal" rows="2" maxlength="4000" @input="setGoal(i,'text',($event.target as HTMLTextAreaElement).value)"></textarea><small v-if="goal.carriedFrom" class="goal-origin">From {{ formatDate(goal.carriedFrom,{month:'short',day:'numeric'}) }}</small></div><button class="rhythm-check" :class="{checked:goal.done}" :disabled="!goal.text.trim()" :aria-label="(goal.done?'Reopen':'Complete')+' weekly goal '+(i+1)" :aria-pressed="goal.done" @click="setGoal(i,'done',!goal.done)">{{ goal.done?'✓':'' }}</button></div></div>
         </section>
         <section class="rhythm-card"><div class="rhythm-card-head"><h2>Body check</h2><span class="muted">{{ basicsCount }} / 6</span></div><div class="basics-grid"><button v-for="basic in basics" :key="basic.key" :class="{checked:daily[basic.key]}" :aria-pressed="Boolean(daily[basic.key])" @click="setDaily(basic.key,!daily[basic.key])"><strong>{{ basic.label }} <span v-if="daily[basic.key]">✓</span></strong><small>{{ basic.detail }}</small></button></div><div class="water-row"><span><strong>Water</strong><small>{{ Number(daily.water||0)*30 }} / 90 oz</small></span><div><button v-for="n in 3" :key="n" :class="{checked:Number(daily.water||0)>=n}" :aria-label="n*30+' ounces of water'" :aria-pressed="Number(daily.water||0)>=n" @click="setDaily('water',Number(daily.water||0)===n?n-1:n)">{{ n }}</button></div></div></section>
         <section class="rhythm-card"><div class="rhythm-card-head"><h2>Momentum</h2><strong class="count-accent">{{ momentum===null?'—':momentum+'%' }}</strong></div><div class="momentum-grid"><div><small>Walk streak</small><strong>{{ streak('walk') }}<small> days</small></strong></div><div><small>Read streak</small><strong>{{ streak('read') }}<small> days</small></strong></div><button @click="emit('training')"><small>Workouts</small><strong>{{ weeklyLifts }}<small> / {{ store.state.settings?.weeklyWorkoutGoal||3 }}</small></strong></button><div><small>Builds</small><strong>{{ weeklyBuilds }}<small> / 2</small></strong></div></div><p class="rhythm-footnote">Workouts update when you save them in Training.</p></section>

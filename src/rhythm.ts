@@ -1,7 +1,7 @@
 import type { Workout } from './types'
 
 export type DayLoad = 'red' | 'yellow' | 'green' | 'off'
-export interface Goal { text: string; done: boolean }
+export interface Goal { text: string; done: boolean; id?: string; carriedFrom?: string }
 export interface Meeting { id: string; title: string; date: string; start: number; end: number }
 export interface CalendarEvent { id: string; title: string; detail: string; at: number; endAt: number; kind: string; allDay?: boolean }
 export interface RhythmState {
@@ -28,6 +28,40 @@ export function shiftDay(key: string, amount: number) {
 }
 export function weekday(key: string) { return new Date(key + 'T12:00:00Z').getUTCDay() }
 export function weekFor(key: string) { return Array.from({ length: 7 }, (_, i) => shiftDay(key, i - weekday(key))) }
+// Snapshot unfinished goals into the current week, preserving every past week.
+// Stable identities also keep renamed, completed, or cleared copies from returning.
+export function carryGoalsForward(weeks: Record<string, Goal[]>, currentWeek: string): Goal[] {
+  const latest = new Map<string, { goal: Goal; week: string }>()
+  const identitiesByText = new Map<string, string>()
+  const textKey = (text: string) => text.trim().replace(/\s+/g, ' ').toLocaleLowerCase()
+  let current: Goal[] = []
+  for (const week of [...new Set([...Object.keys(weeks), currentWeek])].filter(w => /^\d{4}-\d{2}-\d{2}$/.test(w) && w <= currentWeek).sort()) {
+    const rows = (weeks[week] || []).map((raw, index) => {
+      const text = textKey(raw.text)
+      if (!text && !raw.id) return { ...raw }
+      const id = raw.id || identitiesByText.get(text) || `goal:${week}:${index}`
+      const previous = latest.get(id)
+      const goal: Goal = { ...raw, id }
+      if (previous && previous.week < week) goal.carriedFrom ||= previous.goal.carriedFrom || previous.week
+      if (text) identitiesByText.set(text, id)
+      latest.set(id, { goal, week })
+      return goal
+    })
+    if (week === currentWeek) current = rows
+  }
+  const currentIds = new Set(current.map(g => g.id))
+  const currentText = new Set(current.map(g => textKey(g.text)).filter(Boolean))
+  for (const { goal, week } of latest.values()) {
+    const text = textKey(goal.text)
+    if (week >= currentWeek || goal.done || !text || currentIds.has(goal.id) || currentText.has(text)) continue
+    const carried = { ...goal, carriedFrom: goal.carriedFrom || week }
+    const blank = current.findIndex(g => !g.text.trim() && !g.id)
+    if (blank === -1) current.push(carried)
+    else current[blank] = carried
+    currentIds.add(goal.id); currentText.add(text)
+  }
+  return current
+}
 export function formatDate(key: string, options: Intl.DateTimeFormatOptions) { return new Date(key + 'T12:00:00Z').toLocaleDateString('en-US', { ...options, timeZone: 'UTC' }) }
 export function hourNow(date = new Date()) {
   const parts = new Intl.DateTimeFormat('en-US', {timeZone: TIME_ZONE, hour: 'numeric', minute: 'numeric', hour12: false}).formatToParts(date)

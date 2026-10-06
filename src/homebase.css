@@ -8,3 +8,87 @@ body{background:#13162a}.app-shell{max-width:1480px;padding:28px 36px 30px}.topb
 @media(prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important}}
 
 .day-load{white-space:nowrap}.day-load select{width:auto}.entry-copy>strong{font-size:16px}@media(max-width:560px){.entry-copy>strong{font-size:14px}}
+
+/* Readability: separate canvas, raised cards, and editable fields. */
+:root {
+  --surface: #1d293f;
+  --surface-raised: #24334c;
+  --field: #121d31;
+  --control-border: #7084a3;
+  --muted: #b8c4da;
+  --line: #4b5e7c;
+  --ghost: #f2f4ff;
+  color: var(--ghost);
+}
+.day-panel, .rhythm-card, .panel, .exercise-card, .history-card, .day-card {
+  background: var(--surface);
+  border-color: var(--line);
+}
+.rhythm-card { background: #223149; }
+.day-panel-head, .rhythm-toolbar { background: #25344d; border-color: var(--line); }
+.rhythm-entry { border-bottom-color: #3b4d68; }
+.rhythm-entry.current { background: #19434c; box-shadow: inset 3px 0 #8be8cb; }
+.rhythm-entry.calendar, .rhythm-entry.meeting { background: #303149; }
+.rhythm-entry.skipped { opacity: 1; }
+.entry-time small, .entry-copy > small, .day-panel-head .eyebrow,
+.time-zone-note, .rhythm-footnote, .fixed-label, .basics-grid small {
+  color: var(--muted);
+}
+.rhythm-entry.done .entry-copy > strong { color: #b9c6d9; }
+.rhythm-day { background: #202c43; border-color: #4b5e7c; }
+.rhythm-day-top { color: #c1cce0; }
+.rhythm-day.selected { background: #085969; border-color: #8be8cb; }
+.rhythm-day.selected .rhythm-day-top { color: #d4f3ed; }
+.rhythm-day.selected .rhythm-day-focus { color: #f2f4ff; }
+.rhythm-check { background: var(--field); border-color: var(--control-border); }
+.rhythm-goal { background: var(--field); border-color: #586d8b; }
+.goal-copy { flex: 1; min-width: 0; }
+.rhythm-goal textarea { display: block; font-size: 14px; color: var(--ghost); }
+.rhythm-goal textarea::placeholder { color: #afbdd4; font-size: 13px; }
+.rhythm-goal.done textarea { color: #b8c4da; }
+.goal-origin { display: block; margin-top: 4px; font-size: 12px; color: #a5e5d0; }
+.goal-index { color: #efb4b0; font-size: 12px; }
+.goals-card { border-top-color: #8be8cb; }
+.basics-grid button, .water-row button { background: var(--field); border-color: #647b99; }
+.water-row { border-color: #586d8b; }
+.count-accent small { color: #b1c5d3; }
+
+/* The logger needs stronger separation than the surrounding page. */
+.drawer-card { background: #141f33; border-color: #647b99; }
+.drawer-head, .drawer-actions { background: #141f33; }
+.drawer-head { border-bottom: 1px solid #4b5e7c; margin-bottom: 14px; }
+.drawer-actions { border-top: 1px solid #4b5e7c; padding-top: 14px; }
+.log-exercise { background: var(--surface-raised); border-color: #586d8b; margin-bottom: 14px; }
+.log-ex-head h3 { color: #f2f4ff; }
+.log-ex-main label { color: #c5d0e4; font-size: 12px; }
+input, select, textarea, .set-row input { background-color: var(--field); border-color: var(--control-border); color: #f2f4ff; }
+input::placeholder, textarea::placeholder { color: #afbdd4; opacity: 1; }
+.workout-title { background: transparent; }
+.set-head { color: #c1cce0; font-size: 11px; line-height: 1.4; }
+.set-row { border-radius: 6px; }
+.set-row.done { background: #244942; }
+.set-row.skipped { opacity: 1; color: #b8c4da; }
+.set-row.skipped input[type=number] { color: #b8c4da; }
+.set-row input[type=checkbox] {
+  appearance: none; width: 20px; height: 20px; padding: 0;
+  background: var(--field); border: 2px solid #8194b0; border-radius: 5px;
+  cursor: pointer;
+}
+.set-row input[type=checkbox]:checked {
+  background: #8be8cb url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20'%3E%3Cpath d='m4 10 4 4 8-8' fill='none' stroke='%23153831' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E") center/16px no-repeat;
+  border-color: #8be8cb;
+}
+.set-row input[type=checkbox]:disabled { opacity: .45; cursor: default; }
+.log-ex-head .last-performance { background: #303650; border-color: #6a789c; box-shadow: none; }
+.log-ex-head .today-guidance { background: #164349; border-color: #568d8a; box-shadow: none; }
+.log-ex-head .last-performance > span { color: #d1cbed; font-size: 11px; }
+.log-ex-head .today-guidance > span { color: #a6ead6; font-size: 11px; }
+.log-ex-head .last-performance strong { color: #f0edff; font-size: 12px; }
+.log-ex-head .today-guidance .suggestion { color: #c4f7e6; font-size: 12px; }
+.log-ex-head .last-performance::before { background: #c2b5e8; box-shadow: none; }
+.log-ex-head .today-guidance::before { background: #8be8cb; box-shadow: none; }
+@media(max-width:560px) {
+  .set-head { font-size: 10px; letter-spacing: 0; }
+  .entry-time small { font-size: 11px; }
+  .entry-copy > small { font-size: 12px; }
+}

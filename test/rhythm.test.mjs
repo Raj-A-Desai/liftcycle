@@ -38,3 +38,35 @@ test('Eastern date, Sunday-first weeks, and automatic federal off-days are retai
   assert.deepEqual(weekFor('2026-10-05'),['2026-10-04','2026-10-05','2026-10-06','2026-10-07','2026-10-08','2026-10-09','2026-10-10'])
   assert.equal(loadFor(emptyRhythm(),'2026-10-12'),'off')
 })
+
+test('unfinished goals carry across missed weeks without changing history or duplicating on reload',async()=>{
+  const {carryGoalsForward}=await import('../src/rhythm.ts')
+  const weeks={'2026-09-20':[{text:'Finish project',done:false},{text:'Finished task',done:true}], '2026-10-04':[{text:'Current goal',done:false}]}
+  const before=JSON.stringify(weeks)
+  const current=carryGoalsForward(weeks,'2026-10-04')
+  assert.equal(JSON.stringify(weeks),before)
+  assert.deepEqual(current.map(g=>g.text),['Current goal','Finish project'])
+  assert.equal(current[1].carriedFrom,'2026-09-20')
+  weeks['2026-10-04']=current
+  assert.deepEqual(carryGoalsForward(weeks,'2026-10-04'),current)
+})
+test('completed, renamed and cleared carried goals do not resurrect from older snapshots',async()=>{
+  const {carryGoalsForward}=await import('../src/rhythm.ts')
+  const weeks={'2026-09-27':[{text:'First task',done:false},{text:'Second task',done:false},{text:'Third task',done:false}]}
+  weeks['2026-10-04']=carryGoalsForward(weeks,'2026-10-04')
+  weeks['2026-10-04'][0].done=true
+  weeks['2026-10-04'][1].text='Renamed task'
+  weeks['2026-10-04'][2].text=''
+  const next=carryGoalsForward(weeks,'2026-10-11')
+  assert.deepEqual(next.map(g=>g.text),['Renamed task'])
+  assert.equal(next[0].carriedFrom,'2026-09-27')
+  assert.equal(weeks['2026-09-27'][0].done,false)
+})
+test('existing current goals and completed duplicates take precedence over imported old goals',async()=>{
+  const {carryGoalsForward}=await import('../src/rhythm.ts')
+  const weeks={'2026-09-20':[{text:'  Same task ',done:false},{text:'Already finished',done:false}], '2026-09-27':[{text:'Already finished',done:true}], '2026-10-04':[{text:'same   task',done:false},{text:'',done:false}], '2026-10-11':[{text:'Future goal',done:false}]}
+  const next=carryGoalsForward(weeks,'2026-10-04')
+  assert.equal(next.filter(g=>g.text.trim()).length,1)
+  assert.equal(next[0].text,'same   task')
+  assert.deepEqual(weeks['2026-10-11'],[{text:'Future goal',done:false}])
+})
