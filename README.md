@@ -96,4 +96,4 @@ Opening the current Eastern-time week carries unfinished goals from earlier week
 
 ## Visual identity
 
-See [BRAND.md](BRAND.md) for shared design tokens, self-hosted Noto Sans, logo variants, and app-icon usage.
+See [BRAND.md](BRAND.md) for shared design tokens, self-hosted Atkinson Hyperlegible Next, logo variants, and app-icon usage.

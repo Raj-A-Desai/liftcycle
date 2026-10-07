@@ -12,11 +12,11 @@ reference. Do not add imagery or a background from the original reference.
 
 | Asset | Use |
 | --- | --- |
-| `public/brand/mark.svg` | Default teal-to-lavender mark on dark surfaces |
+| `public/brand/mark.svg` | Default violet-to-apricot mark on dark surfaces |
 | `public/brand/mark-mono.svg` | Lavender mark for small or single-color dark usage |
-| `public/brand/mark-light.svg` | Solid teal mark on light surfaces |
-| `public/brand/logo-dark.svg` | Horizontal mark and lowercase Noto Sans Medium wordmark, outlined |
-| `public/brand/logo-light.svg` | Horizontal logo with dark wordmark and teal mark for light surfaces |
+| `public/brand/mark-light.svg` | Solid purple mark on light surfaces |
+| `public/brand/logo-dark.svg` | Horizontal mark and lowercase Atkinson Hyperlegible Next Medium wordmark, outlined |
+| `public/brand/logo-light.svg` | Horizontal logo with dark wordmark and purple mark for light surfaces |
 | `public/favicon.svg` | Simplified lavender mark at browser-tab sizes |
 | `public/icons/app.svg` | Standard application icon |
 | `public/icons/maskable.svg` | Opaque maskable icon with the mark inside the central safe circle |
@@ -37,17 +37,18 @@ semantic colors, surfaces, text hierarchy, borders, radii, spacing, and focus.
 shell/Rhythm layouts, and `src/identity.css` applies shared component treatments.
 
 Use only 400 (body/data), 500 (brand/navigation/emphasis), and 600 (titles and
-actions). Noto Sans uses the Latin variable WOFF2 from Fontsource's
-`@fontsource-variable/noto-sans` 5.3.0, embedded in the CSS bundle with
+actions). Atkinson Hyperlegible Next uses the Latin variable WOFF2 from Fontsource's
+`@fontsource-variable/atkinson-hyperlegible-next` 5.3.0, embedded in the CSS bundle with
 `font-display: swap` and system sans-serif fallbacks. The license is in
 `public/fonts/OFL.txt`.
 Use tabular numerals for times, workout values, and progress. Preserve readable
 field sizes on phones and avoid browser number spinners consuming logging space.
 
-Primary colors: teal `#007991`, lavender `#E2D6FF`, canvas `#13162A`.
-Teal fills actions; lavender identifies the product and selected navigation.
+Primary colors: dioxazine-inspired purple `#4C2882`, soft apricot `#EDB58C`,
+and aubergine canvas `#171323`. Purple fills primary actions and selected
+navigation; apricot highlights current time, key counts, and secondary actions.
 Mint means completion/success; red means destructive/error; amber means warning.
-Do not turn semantic states into branding accents. Use the solid teal variant
+Do not turn semantic states into branding accents. Use the solid purple variant
 on light backgrounds because pale lavender loses contrast there.
 
 The manifest opens `/#/rhythm` in standalone mode. No service worker or new
@@ -62,7 +63,17 @@ configuration remain compatible.
   Rhythm goals, module navigation, saved workout reload/edit, and progress.
 - Auth form rendering and production cloud configuration are checked. A fresh
   live account login and cross-device cloud write were not performed.
-- Primary button contrast is 5.07:1; muted text on raised surfaces is 7.23:1;
-  selected navigation text is 7.85:1. Input border/field contrast is 4.43:1.
+- Updated palette: primary button contrast 10.86:1; muted text on raised
+  surfaces 7.22:1; selected navigation 7.80:1; apricot on accent surface 6.64:1;
+  input border/field contrast 5.04:1.
 - Icons are validated for dimensions and maskable safe area. Physical iOS
   installation/home-screen caching remains a device-level check.
+
+## October 7 typography and palette refinement
+
+Atkinson Hyperlegible Next replaces Noto Sans throughout the UI and outlined
+wordmarks. It is bundled locally; there is no runtime font request to a third
+party. Purple is inspired by dioxazine pigment rather than a claimed universal
+pigment-to-screen match. The approved ultrawide and phone spacing is retained.
+The legacy `--brand-teal` token aliases `--brand-purple` for module compatibility.
+Source: https://www.brailleinstitute.org/freefont/

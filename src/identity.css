@@ -4,17 +4,17 @@ button, input, select, textarea { font-family: var(--font-ui); }
 button, strong, b { font-weight: var(--weight-semibold); }
 input, select, textarea { font-weight: var(--weight-regular); }
 h1, h2, h3 { font-weight: var(--weight-semibold); }
-h1 { letter-spacing: -.035em; }
+h1 { letter-spacing: -.015em; }
 h2, h3 { letter-spacing: -.02em; }
 
 .homebase-brand { display: inline-flex; text-decoration: none; flex-shrink: 0; }
 .homebase-identity { display: inline-flex; align-items: center; gap: var(--space-3); }
 .homebase-mark { display: block; flex: 0 0 auto; width: 40px; height: 40px; }
-.homebase-wordmark { color: var(--brand-lavender); font-size: 28px; font-weight: var(--weight-medium); line-height: 1.2; letter-spacing: -.035em; }
+.homebase-wordmark { color: var(--brand-lavender); font-size: 28px; font-weight: var(--weight-medium); line-height: 1.2; letter-spacing: -.015em; }
 .footer-wordmark { font-weight: var(--weight-medium); letter-spacing: -.02em; }
 .homebase-nav > button { font-weight: var(--weight-medium); transition: background var(--transition), border-color var(--transition); }
 .homebase-nav > button:hover { background: var(--surface); }
-.homebase-nav > button.active { background: var(--accent-surface); color: var(--brand-lavender); border-color: var(--primary-border); }
+.homebase-nav > button.active { background: var(--selected-surface); color: var(--brand-lavender); border-color: var(--primary-border); }
 .homebase-nav button > span { font-weight: var(--weight-regular); color: var(--text-muted); }
 .homebase-nav .resume-session { color: var(--brand-lavender); border-color: var(--lavender-border); }
 .tabs { background: var(--surface-low); box-shadow: none; }
@@ -36,10 +36,10 @@ h2, h3 { letter-spacing: -.02em; }
 .sync-pill .dot { background: var(--text-muted); }
 .sync-pill.syncing .dot { background: var(--accent-text); }
 .sync-pill.offline .dot { background: var(--warning); }
-.section-head h1, .module-heading h1 { font-weight: var(--weight-semibold); letter-spacing: -.035em; line-height: 1.25; }
+.section-head h1, .module-heading h1 { font-weight: var(--weight-semibold); letter-spacing: -.015em; line-height: 1.25; }
 .day-panel-head, .rhythm-toolbar { background: var(--surface-raised); }
 .rhythm-card { background: var(--surface); }
-.goals-card { border-top-color: var(--brand-lavender); }
+.goals-card { border-top-color: var(--brand-orange); }
 .goal-index, .count-accent { color: var(--brand-lavender); }
 .goal-origin { color: var(--text-muted); }
 .rhythm-day.selected { background: var(--selected-surface); border-color: var(--accent-text); }
@@ -80,7 +80,7 @@ h2, h3 { letter-spacing: -.02em; }
 .metric-card:after { display: none; }
 .metric-label, .metric-tag, .metric-description, .metric-number span { color: var(--text-secondary); }
 .metric-icon, .consistency-metric .metric-icon { color: var(--brand-lavender); border-color: var(--lavender-border); }
-.metric-number, .muscle-numbers > span { color: var(--text); font-weight: var(--weight-medium); letter-spacing: -.04em; }
+.metric-number, .muscle-numbers > span { color: var(--text); font-weight: var(--weight-medium); letter-spacing: -.015em; }
 .metric-track > div, .muscle-track > div { background: var(--accent-text); }
 .muscle-card { background: var(--surface); }
 .muscle-card.hit { background: var(--success-surface); border-color: var(--success-border); }
@@ -120,3 +120,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
   .set-head { font-size: 9px; }
   .panel-head { flex-direction: column; }
 }
+
+/* Apricot guides attention; green remains reserved for progress/completion. */
+.count-accent, .day-load select { color: var(--brand-orange); }
+.rhythm-day.today:not(.selected) { border-color: var(--brand-orange); }
+.today-mark { background: var(--brand-orange); color: var(--canvas); }
