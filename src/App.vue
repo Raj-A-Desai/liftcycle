@@ -4,6 +4,7 @@ import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useLiftStore } from './store'
 import RhythmView from './components/RhythmView.vue'
 import HomebaseBrand from './components/HomebaseBrand.vue'
+import AmbientAtmosphere from './components/AmbientAtmosphere.vue'
 import { dateKey } from './rhythm'
 import { cloudConfigured } from './supabase'
 import type { Exercise, LoggedSet, PlanItem } from './types'
@@ -11,6 +12,28 @@ import { MUSCLE_GROUPS, consistencyStats, muscleRows } from './metrics'
 import { actualExerciseSummary } from './workoutSummary'
 
 const store = useLiftStore()
+const ambientEnabled = ref(true)
+const reducedMotion = ref<'reduce' | 'no-preference'>('no-preference')
+const pageVisibility = ref<DocumentVisibilityState>('visible')
+const ambientRunning = computed(() => ambientEnabled.value && reducedMotion.value !== 'reduce' && pageVisibility.value === 'visible')
+let cleanupAtmosphere = () => {}
+onMounted(() => {
+  try { ambientEnabled.value = localStorage.getItem('homebase-ambient-enabled') !== 'false' } catch { /* Storage can be unavailable in private browsing. */ }
+  const preference = window.matchMedia('(prefers-reduced-motion: reduce)')
+  const updatePreference = () => { reducedMotion.value = preference.matches ? 'reduce' : 'no-preference' }
+  const updateVisibility = () => { pageVisibility.value = document.visibilityState }
+  updatePreference(); updateVisibility()
+  preference.addEventListener('change', updatePreference)
+  document.addEventListener('visibilitychange', updateVisibility)
+  cleanupAtmosphere = () => {
+    preference.removeEventListener('change', updatePreference)
+    document.removeEventListener('visibilitychange', updateVisibility)
+  }
+})
+onBeforeUnmount(() => cleanupAtmosphere())
+watch(ambientEnabled, enabled => {
+  try { localStorage.setItem('homebase-ambient-enabled', String(enabled)) } catch { /* Keep the control usable without storage. */ }
+})
 const tab = ref<'schedule'|'cycle'|'exercises'|'history'|'progress'>('schedule')
 const section = ref<'rhythm'|'training'>('rhythm')
 const loggerOpen = ref(false)
@@ -242,6 +265,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
 </script>
 
 <template>
+  <AmbientAtmosphere :running="ambientRunning" />
   <div class="app-shell" :class="{'training-section':section==='training'}">
     <header class="topbar">
       <div>
@@ -496,7 +520,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
 
     <footer>
       <div><strong class="footer-wordmark">homebase</strong><span>{{ store.userId ? 'Private cloud sync + local cache' : 'Saved in this browser' }}</span></div>
-      <div class="footer-actions"><input ref="importInput" hidden type="file" accept="application/json" @change="importJson" /><button class="ghost small" @click="importInput?.click()">Import JSON</button><button class="ghost small" @click="store.exportState()">Export JSON</button></div>
+      <div class="footer-actions"><button class="text-btn ambient-toggle" :aria-pressed="ambientEnabled && reducedMotion !== 'reduce'" :disabled="reducedMotion === 'reduce'" :title="reducedMotion === 'reduce' ? 'Reduced motion follows your device settings' : 'Pause or resume background motion'" @click="ambientEnabled = !ambientEnabled">{{ ambientEnabled && reducedMotion !== 'reduce' ? 'Pause atmosphere' : 'Atmosphere off' }}</button><input ref="importInput" hidden type="file" accept="application/json" @change="importJson" /><button class="ghost small" @click="importInput?.click()">Import JSON</button><button class="ghost small" @click="store.exportState()">Export JSON</button></div>
     </footer>
   </div>
 </template>

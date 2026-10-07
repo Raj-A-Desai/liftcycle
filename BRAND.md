@@ -77,3 +77,13 @@ party. Purple is inspired by dioxazine pigment rather than a claimed universal
 pigment-to-screen match. The approved ultrawide and phone spacing is retained.
 The legacy `--brand-teal` token aliases `--brand-purple` for module compatibility.
 Source: https://www.brailleinstitute.org/freefont/
+
+## Atmosphere and motion
+
+`src/motion.css` owns the eggplant planner selection (`#43263D`) and motion
+rules. Two faint radial glows and twelve tiny particles sit behind the opaque
+content; phones show six particles. Only transforms animate continuously.
+The footer can pause the atmosphere per browser, and hidden tabs pause it.
+Reduced-motion preferences hide ambient decoration and disable all transitions
+and animations. Controls transition over 180 ms; panels enter over 280 ms.
+Animation never recreates workout drafts or calendar state.

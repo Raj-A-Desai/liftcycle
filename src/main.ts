@@ -5,5 +5,6 @@ import './tokens.css'
 import './style.css'
 import './homebase.css'
 import './identity.css'
+import './motion.css'
 
 createApp(App).use(createPinia()).mount('#app')

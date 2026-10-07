@@ -1,0 +1,91 @@
+/* Quiet atmosphere behind opaque reading surfaces. No canvas or frame loop. */
+:root {
+  --planner-selected: #43263d;
+  --motion-ease: cubic-bezier(.2, .7, .25, 1);
+  --motion-fast: 180ms;
+  --motion-panel: 280ms;
+}
+
+#app { isolation: isolate; }
+.ambient-atmosphere {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  contain: strict;
+}
+.ambient-wash { position: absolute; width: 80vw; height: 85vh; }
+.ambient-wash-purple {
+  top: -28vh; left: -15vw;
+  background: radial-gradient(ellipse, #9262b31c 0%, #623a8910 38%, transparent 70%);
+  animation: atmosphere-flow 42s ease-in-out infinite alternate;
+}
+.ambient-wash-apricot {
+  right: -25vw; bottom: -35vh;
+  background: radial-gradient(ellipse, #edb58c0e 0%, #a76b8510 38%, transparent 70%);
+  animation: atmosphere-flow 53s ease-in-out -19s infinite alternate-reverse;
+}
+.ambient-mote {
+  position: absolute;
+  width: var(--mote-size); height: var(--mote-size);
+  border-radius: 50%;
+  background: var(--brand-lavender);
+  opacity: .16;
+  animation: atmosphere-drift var(--drift-duration) ease-in-out var(--drift-delay) infinite alternate;
+}
+.ambient-mote:nth-child(3n) { background: var(--brand-orange); opacity: .2; }
+.ambient-atmosphere.is-paused > * { animation-play-state: paused; }
+
+.rhythm-day.selected, .rhythm-day.selected:hover {
+  background: var(--planner-selected);
+  border-color: var(--brand-orange);
+}
+.homebase-nav > button, .tabs button, .rhythm-day,
+.primary, .ghost, .text-btn, .rhythm-check, .workout-link,
+.basics-grid button, .water-row button, .goal-delete {
+  transition: background-color var(--motion-fast) var(--motion-ease),
+    border-color var(--motion-fast) var(--motion-ease),
+    color var(--motion-fast) var(--motion-ease),
+    box-shadow var(--motion-fast) var(--motion-ease),
+    transform var(--motion-fast) var(--motion-ease);
+}
+.rhythm-goal, .rhythm-entry {
+  transition: background-color var(--motion-fast) var(--motion-ease), border-color var(--motion-fast) var(--motion-ease);
+}
+.rhythm-mini-track i, .metric-track > div, .muscle-track > div {
+  transition: width 360ms var(--motion-ease);
+}
+.rhythm-page, .training-section main > .page, .drawer-card, .homebase-meeting-dialog[open] {
+  animation: surface-arrive var(--motion-panel) var(--motion-ease) both;
+}
+.ambient-toggle { font-size: 12px; white-space: nowrap; }
+.footer-actions { flex-wrap: wrap; justify-content: flex-end; }
+
+@media (hover: hover) and (pointer: fine) {
+  .rhythm-day:hover, .primary:hover, .ghost:hover { transform: translateY(-1px); }
+}
+button:not(:disabled):active { transform: translateY(1px); }
+
+@keyframes atmosphere-flow {
+  from { transform: translate3d(0, 0, 0) rotate(-5deg); }
+  to { transform: translate3d(8vw, 6vh, 0) rotate(6deg); }
+}
+@keyframes atmosphere-drift {
+  from { transform: translate3d(-12px, 16px, 0); }
+  to { transform: translate3d(28px, -38px, 0); }
+}
+@keyframes surface-arrive {
+  from { opacity: .5; transform: translateY(5px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+@media (max-width: 620px) {
+  .ambient-mote:nth-of-type(n+7) { display: none; }
+  .ambient-wash { width: 120vw; }
+  .footer-actions { max-width: 70%; gap: 8px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+  .ambient-atmosphere { display: none; }
+  button:not(:disabled):active, .rhythm-day:hover, .primary:hover, .ghost:hover { transform: none; }
+}
