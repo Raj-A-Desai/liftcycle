@@ -5,8 +5,9 @@ body {
 }
 
 .app-shell {
-  max-width: 1480px;
-  padding: 28px 36px 30px;
+  width: 100%;
+  max-width: none;
+  padding: 24px clamp(24px, 2vw, 72px) 30px;
 }
 
 .topbar {
@@ -986,13 +987,55 @@ button:disabled {
 
 @media (min-width:1200px) {
   .training-section .page,.training-section>.tabs {
-    max-width: 1160px;
+    max-width: none;
     margin-left: auto;
     margin-right: auto;
   }
   .rhythm-entry {
     min-height: 96px;
   }
+}
+
+/* Wide workspaces: keep the timeline sequential and bring supporting cards
+   alongside the goals. Natural height preserves access to unusually long days. */
+@media (min-width:1600px) {
+  .topbar { padding-bottom: 12px; }
+  .homebase-nav { padding-bottom: 8px; margin-bottom: 14px; }
+  .module-heading { margin-bottom: 16px; }
+  .module-heading h1 { font-size: 28px; margin-top: 4px; }
+  .rhythm-week { margin-bottom: 16px; }
+  .rhythm-day { padding-top: 8px; padding-bottom: 8px; }
+  .rhythm-day-focus { margin-bottom: 6px; }
+  .rhythm-day-number { font-size: 26px; margin-bottom: 6px; }
+  .rhythm-layout {
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr);
+    gap: 20px;
+  }
+  .rhythm-sidebar {
+    display: grid;
+    grid-template-columns: minmax(0, 1.15fr) minmax(280px, .85fr);
+    grid-template-rows: min-content min-content 1fr;
+    gap: 16px;
+    align-items: start;
+  }
+  .rhythm-sidebar > .goals-card { grid-column: 1; grid-row: 1 / span 3; }
+  .rhythm-sidebar > :not(.goals-card) { grid-column: 2; }
+  .rhythm-sidebar > *, .day-panel { min-width: 0; }
+  .rhythm-card { padding: 16px; }
+  .rhythm-card-head { margin-bottom: 12px; }
+  .day-panel-head { padding: 12px 20px; }
+  .day-panel-head h2 { line-height: 1.2; }
+  .rhythm-toolbar { padding-top: 10px; padding-bottom: 10px; }
+  .rhythm-entry { min-height: 68px; padding-top: 8px; padding-bottom: 8px; }
+  .day-panel-footer { padding-top: 8px; padding-bottom: 8px; }
+  .app-shell > footer { margin-top: 16px; padding-top: 10px; }
+}
+
+@media (min-width:2200px) {
+  .rhythm-layout { grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr); }
+  .rhythm-sidebar { grid-template-columns: minmax(0, 1.65fr) minmax(320px, 1fr); }
+  .rhythm-goals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .rhythm-goal { min-width: 0; }
 }
 
 @media (max-width:1100px) {
