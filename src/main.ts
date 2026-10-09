@@ -6,6 +6,10 @@ import './style.css'
 import './homebase.css'
 import './identity.css'
 import './motion.css'
-import './evolution.css'
+import './styles/workspace.css'
+import './styles/today.css'
+import './styles/rhythm.css'
+import './styles/training.css'
+import './styles/guide.css'
 
 createApp(App).use(createPinia()).mount('#app')

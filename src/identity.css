@@ -125,3 +125,49 @@ button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible
 .count-accent, .day-load select { color: var(--brand-orange); }
 .rhythm-day.today:not(.selected) { border-color: var(--brand-orange); }
 .today-mark { background: var(--brand-orange); color: var(--canvas); }
+
+/* Shared refinement primitives, extracted from evolution.css. */
+.day-card, .exercise-card, .history-card { background: var(--surface-low); }
+.ghost { border-color: transparent; }
+.primary { box-shadow: none; }
+.chips span { background: transparent; border: 0; padding: 2px 8px 2px 0; color: var(--text-muted); }
+.quiet-section { padding: 24px 0; border-bottom: 1px solid var(--divider-subtle); min-width: 0; }
+.quiet-section h2 { margin: 8px 0 12px; font-size: 23px; font-weight: 550; }
+.quiet-section h3 { margin: 0 0 12px; }
+.section-title-row, .inline-actions, .undo-row { display: flex; align-items: center; justify-content: space-between; gap: 14px; }
+.inline-actions { justify-content: flex-start; flex-wrap: wrap; }
+.signal-list { margin: 20px 0; }
+.signal-list > div { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; padding: 9px 0; }
+.signal-list dt { font-size: 13px; color: var(--text-muted); }
+.signal-list dd { margin: 0; font-size: 20px; font-variant-numeric: tabular-nums; }
+.signal-list dd span { font-size: 12px; color: var(--text-muted); }
+.momentum-state { color: var(--brand-orange); }
+.adjustment-row { padding: 16px 0; border-bottom: 1px solid var(--divider-subtle); }
+.adjustment-row strong { font-weight: 550; }
+.adjustment-row p { font-size: 13px; margin: 7px 0; }
+.adjustment-row .text-btn { font-size: 12px; text-align: left; min-height: 40px; }
+.undo-row { color: var(--text-muted); font-size: 12px; padding: 14px 0; line-height: 1.5; }
+.undo-row button { flex-shrink: 0; }
+@media (max-width:560px) {
+  .quiet-section { padding: 24px 0; }
+}
+@media (max-width:560px) {
+  .quiet-section h2 { font-size: 22px; }
+}
+@media (max-width:560px) {
+  .time-zone-note { display: none; }
+}
+/* One strong action surface, shared by Today and Train. */
+.attention-area { padding: 28px 30px; border-radius: var(--radius-card); background: var(--planner-selected); }
+.attention-area .eyebrow { color: var(--brand-orange); }
+.attention-area h2 { font-size: clamp(26px,3vw,38px); font-weight: 550; line-height: 1.2; margin: 16px 0; }
+.attention-area p { color: var(--text-muted); line-height: 1.6; max-width: 60ch; }
+.attention-area .primary { min-height: 48px; margin: 12px 0 6px; }
+.attention-rule { display: block; color: var(--text-muted); font-size: 11px; line-height: 1.5; margin-top: 20px; max-width: 60ch; }
+.intention-dialog details { margin-top: 18px; }
+.intention-dialog summary { color: var(--brand-lavender); min-height: 44px; padding: 12px 0; cursor: pointer; }
+.intention-dialog details label { margin-top: 16px; }
+.momentum-comparison { font-size: 13px; }
+@media (max-width:560px) { .attention-area { padding: 24px 20px; } .attention-area .primary { width: 100%; } }
+.panel, .day-panel, .rhythm-card, .exercise-card, .history-card, .day-card, .metric-card, .muscle-card, .log-exercise { border: 0; box-shadow: none; }
+.homebase-nav > button.active, .tabs button.active, .guide-index button.selected, .workout-overview button.selected { background: var(--planner-selected); border-color: transparent; color: var(--text); }

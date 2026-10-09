@@ -36,3 +36,11 @@ were changed. Authenticated cross-device sync of the new fields was not exercise
 with the owner's live session; they use the existing unchanged snapshot transport.
 Guide currently validates/saves real imported reviews. Model generation and a
 scheduler remain intentionally unconnected, as described in weekly-review.md.
+
+## Clarity iteration
+
+36 unit tests cover existing behavior plus attention precedence, comparable trend facts, bodyweight progression, optional reason/undo, longitudinal goal links, matched-week Momentum, and fixed-commitment availability. Production type-check and Vite build pass.
+
+Browser verification with synthetic local data covers 393 × 852 mobile, 1440 × 1000 desktop, and 3440 × 1440 ultrawide: Today, Rhythm, Guide, three-destination Training, direct Resume, title-only capture, apply/undo, imported reflection persistence across reload, bulk skip/reason/undo, recent-session disclosure, Escape, reduced motion, and no document or modal horizontal overflow. Rendered screenshots were inspected. Additional browser cases verify starting the correct workout from legacy state, optional goal-link persistence without automatic goal completion, and omitted empty Today sections.
+
+Authentication and sync behavior are unchanged. No production records were used for these tests. Live authenticated cross-device writes remain outside this verification; Vercel's production protection remains enabled.

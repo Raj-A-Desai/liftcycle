@@ -1,0 +1,36 @@
+/* Workspace owns its feature layout and responsive composition. */
+.feature-content { min-width: 0; }
+.module-heading p { color: var(--text-muted); margin: 9px 0 0; }
+@media (min-width:1200px) {
+  .app-shell { padding-left: 246px; }
+
+  .homebase-nav { position: fixed; top: 124px; left: 28px; width: 190px; flex-direction: column; align-items: stretch; border: 0; gap: 10px; z-index: 5; }
+
+  .homebase-nav > button { display: grid; grid-template-columns: 22px 1fr; gap: 7px 12px; padding: 14px; text-align: left; }
+
+  .homebase-nav button > span { grid-column: 2; margin: 0; font-size: 11px; }
+
+  .homebase-nav .resume-session { display: block; margin: 24px 0 0; font-size: 12px; line-height: 1.5; }
+}
+@media (max-width:1199px) {
+  .homebase-nav button > span { display: none; }
+}
+@media (max-width:560px) {
+  .app-shell { padding-bottom: 110px; }
+
+  .homebase-nav { position: fixed; bottom: 0; left: 0; right: 0; margin: 0; padding: 8px 8px max(8px,env(safe-area-inset-bottom)); border-top: 1px solid var(--divider-subtle); background: var(--canvas); z-index: 10; display: grid; grid-template-columns: repeat(4,1fr); gap: 6px; }
+
+  .homebase-nav > button { display: flex; flex-direction: column; gap: 6px; font-size: 11px; padding: 10px 4px; min-height: 60px; }
+
+  .homebase-nav > .resume-session { display: none; }
+
+  .homebase-nav svg { width: 20px; height: 20px; }
+
+  .module-heading { align-items: flex-start; gap: 16px; }
+
+  .module-heading h1 { font-size: 30px; }
+
+  .module-heading p { font-size: 13px; }
+}
+
+

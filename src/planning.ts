@@ -40,34 +40,40 @@ export function weekSignals(state: LiftCycleState, anchor = dateKey()) {
 }
 export function deriveMomentum(state: LiftCycleState, anchor = dateKey()) {
   const current = weekSignals(state,anchor), previous = weekSignals(state,shiftDay(current.start,-7))
-  const activity = current.workouts + current.goalsDone + current.followed
-  const prior = previous.workouts + previous.goalsDone + previous.followed
-  let label: MomentumState = 'Resetting'
-  if (activity && !prior) label = 'Building'
-  else if (activity && prior) {
-    // Compare matched portions of the weeks, never Thursday against all 7 days.
-    const offset = weekFor(anchor).indexOf(anchor)
-    const priorCutoff = shiftDay(previous.start, offset)
-    const priorActivity = state.history.filter(w=>w.date>=previous.start && w.date<=priorCutoff && w.status!=='skipped' && w.exercises.some(e=>e.sets.some(s=>s.done&&!s.warmup&&!s.skipped))).length
-    label = current.workouts < priorActivity ? 'Recovering' : current.workouts > priorActivity ? 'Building' : 'Steady'
-  }
-  return { label, ...current, message: label === 'Resetting' ? 'A little space to choose what comes next.' : label === 'Recovering' ? 'There is room to make the next step manageable.' : label === 'Building' ? 'Your recorded actions are giving this week shape.' : 'You are keeping a rhythm. Leave room for real life.' }
+  // Compare the same weekday cutoff, excluding future-dated workout records.
+  const offset=weekFor(anchor).indexOf(anchor),cutoff=shiftDay(previous.start,offset)
+  const count=(start:string,end:string)=>state.history.filter(w=>w.date>=start&&w.date<=end&&w.status!=='skipped'&&w.exercises.some(e=>e.sets.some(s=>s.done&&!s.warmup&&!s.skipped))).length
+  const priorWorkouts=count(previous.start,cutoff),currentWorkouts=count(current.start,anchor)
+  const activity=currentWorkouts+current.goalsDone+current.followed
+  const prior=priorWorkouts+previous.goalsDone+previous.followed
+  let label:MomentumState='Resetting'
+  if(activity && !prior)label='Building'
+  else if(activity && prior)label=currentWorkouts<priorWorkouts?'Recovering':currentWorkouts>priorWorkouts?'Building':'Steady'
+  const direction = currentWorkouts===priorWorkouts ? 'level' : currentWorkouts>priorWorkouts ? 'up' : 'down'
+  const comparison=priorWorkouts || currentWorkouts ? `${currentWorkouts} recorded workouts by this point, compared with ${priorWorkouts} at the same point last week.` : 'No recorded workouts in either matched week portion yet.'
+  return { label, ...current, direction, comparison, message: label === 'Resetting' ? 'A little space to choose what comes next.' : label === 'Recovering' ? 'There is room to make the next step manageable.' : label === 'Building' ? 'Your recorded actions are giving this week shape.' : 'You are keeping a rhythm. Leave room for real life.' }
 }
 export interface PlanningSuggestion { id: string; kind: 'training' | 'intention' | 'pattern' | 'overload'; title: string; detail: string; from?: string; to?: string; intentionId?: string }
 export function planningSuggestions(state: LiftCycleState, today = dateKey()): PlanningSuggestion[] {
   const suggestions: PlanningSuggestion[] = []
   const hasSession = (d: string) => state.history.some(w=>w.date === d && w.status !== 'skipped') || state.draft?.date === d
+  const roomFor=(d:string,minutes:number)=>{
+    const fixed=dayEntries(state,d).filter(e=>e.intent==='fixed'&&!e.allDay).sort((a,b)=>a.at-b.at)
+    let end=8
+    for(const e of fixed){if(Math.min(e.at,22)-end>=minutes/60)return true;end=Math.max(end,e.endAt)}
+    return 22-end>=minutes/60
+  }
   for (let ago = 1; ago <= 7; ago++) {
     const date = shiftDay(today,-ago), split = plannedSplit(state,date)
     if (!split || hasSession(date)) continue
     const to = Array.from({length:7},(_,i)=>shiftDay(today,i)).find(d=>
-      cycleOn(state,d)?.id === cycleOn(state,date)?.id && !plannedSplit(state,d) && !hasSession(d) &&
+      cycleOn(state,d)?.id === cycleOn(state,date)?.id && !plannedSplit(state,d) && !state.history.some(w=>w.date===d) && !hasSession(d) && roomFor(d,60) &&
       !plannedSplit(state,shiftDay(d,-1)) && !plannedSplit(state,shiftDay(d,1)) && !hasSession(shiftDay(d,-1)) && !hasSession(shiftDay(d,1)))
-    suggestions.push({id:`training:${date}`,kind:'training',title:`Make room for ${split.name}`,detail:to ? `The ${date} session was not logged. ${to} is open, with a day between planned sessions.` : `The ${date} session was not logged. Review your week before adding another session.`,from:date,to})
+    suggestions.push({id:`training:${date}`,kind:'training',title:`Make room for ${split.name}`,detail:to ? `${split.name} from ${date} was not logged; ${to} has room for an hour and no adjacent training sessions, leaving recovery time.` : `${split.name} from ${date} was not logged; no open day with recovery space was found in this cycle.`,from:date,to})
     break
   }
   const unfinished = (state.rhythm!.intentions || []).filter(i=>!i.done && i.date < today).sort((a,b)=>b.date.localeCompare(a.date))
-  for (const i of unfinished.slice(0,2)) suggestions.push({id:`intention:${i.id}:${i.date}`,kind:'intention',title:i.title,detail:`Unfinished from ${i.date}. Make room tomorrow, or leave it for now.`,from:i.date,to:shiftDay(today,1),intentionId:i.id})
+  for (const i of unfinished.slice(0,2)) { const tomorrow=shiftDay(today,1),room=roomFor(tomorrow,i.duration);suggestions.push({id:`intention:${i.id}:${i.date}`,kind:'intention',title:i.title,detail:room?`Unfinished from ${i.date}; tomorrow has an opening for your ${i.duration}-minute intention.`:`Unfinished from ${i.date}; tomorrow’s fixed commitments leave no ${i.duration}-minute opening.`,from:i.date,to:room?tomorrow:undefined,intentionId:i.id}) }
   for (const i of (state.rhythm!.intentions || []).filter(i=>!i.done && i.moves.length >= 3).slice(0,1)) suggestions.push({id:`pattern:${i.id}:${i.moves.length}`,kind:'pattern',title:'This intention keeps moving',detail:`“${i.title}” has moved ${i.moves.length} times. Consider a smaller next step.`})
   for (let n = 0; n < 7; n++) {
     const day = shiftDay(today,n), fixed = dayEntries(state,day).filter(e=>e.intent === 'fixed' && !e.allDay)

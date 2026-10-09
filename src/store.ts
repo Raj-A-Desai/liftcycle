@@ -358,7 +358,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
   function suggestion(exerciseId: string, equipment?: string, variation?: string, date = dateKey(), excludeId?: string) {
     const ex = state.value.library.find(e => e.id === exerciseId)
     if (!ex) return null
-    return progression(ex, state.value.history, {equipment:equipment ?? ex.equipment,variation:variation ?? ex.variation}, state.value.unit, date, excludeId)
+    return progression(ex, state.value.history, {equipment:equipment ?? ex.equipment,variation:variation ?? ex.variation,loadMode:ex.loadMode,loadBasis:ex.loadBasis,unilateral:ex.unilateral}, state.value.unit, date, excludeId)
   }
 
   function saveReview(raw: unknown) { return saveWeeklyReview(state.value,raw) }

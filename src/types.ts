@@ -38,6 +38,7 @@ export interface LoggedExercise {
   notes?: string
   substitutedFrom?: string
   endedAt?: string
+  skipReason?: string
   sets: LoggedSet[]
 }
 export interface Workout {

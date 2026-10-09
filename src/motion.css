@@ -89,3 +89,14 @@ button:not(:disabled):active { transform: translateY(1px); }
   .ambient-atmosphere { display: none; }
   button:not(:disabled):active, .rhythm-day:hover, .primary:hover, .ghost:hover { transform: none; }
 }
+
+/* Shared refinement primitives, extracted from evolution.css. */
+.day-selection-glide { transition: left 260ms var(--motion-ease); }
+.rhythm-time-rail i { transition: height 280ms var(--motion-ease); }
+.rhythm-time-rail b { transition: top 280ms var(--motion-ease); }
+.workout-progress-bar i { transition: width 260ms var(--motion-ease); }
+.set-row { transition: background-color 200ms var(--motion-ease), opacity 200ms var(--motion-ease); }
+@media (prefers-reduced-motion:reduce) {
+  .day-selection-glide, .workout-progress-bar i, .rhythm-time-rail i, .rhythm-time-rail b { transition: none; }
+}
+.entry-copy > small { transition: max-height 230ms var(--motion-ease), opacity 180ms var(--motion-ease); }

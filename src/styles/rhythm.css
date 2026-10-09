@@ -1,0 +1,43 @@
+/* Rhythm owns its feature layout and responsive composition. */
+.rhythm-week { position: relative; gap: 8px; isolation: isolate; }
+.day-selection-glide { position: absolute; inset: 0 auto 0 0; width: calc((100% - 48px) / 7); background: var(--planner-selected); border-radius: var(--radius-control); left: calc(var(--selected-index) * (100% + 8px) / 7);  z-index: -1; }
+.rhythm-day { background: transparent; border-color: transparent; box-shadow: none; }
+.rhythm-day.selected, .rhythm-day.selected:hover { background: transparent; border-color: transparent; }
+.rhythm-day.today:not(.selected) { border-color: transparent; }
+.day-panel-head, .rhythm-toolbar { background: transparent; }
+.rhythm-entry { border-color: var(--divider-subtle); grid-template-columns: 100px 14px minmax(0,1fr) auto; }
+.rhythm-entry.fixed { background: var(--lavender-surface); box-shadow: inset 2px 0 var(--brand-lavender); }
+.rhythm-entry.flexible { background: transparent; }
+.rhythm-entry.flexible .entry-dot { border-style: dashed; opacity: .65; }
+.rhythm-entry.current { background: var(--accent-surface); }
+.entry-semantic { display: block; color: var(--text-muted); font-size: 9px; letter-spacing: .09em; text-transform: uppercase; margin-bottom: 4px; }
+.rhythm-entry.done { opacity: .65; }
+.rhythm-entry.done .entry-copy > small { display: none; }
+.intention-edit { grid-column: 3; justify-self: start; font-size: 11px; padding: 0; min-height: 24px; }
+.rhythm-sidebar .quiet-section { padding: 18px; background: transparent; }
+.goals-card { background: var(--surface-low); }
+.rhythm-goal { border: 0; background: transparent; border-bottom: 1px solid var(--divider-subtle); }
+.basics-grid button, .water-row button { border-color: transparent; }
+@media (min-width:1200px) {
+  .rhythm-layout { grid-template-columns: minmax(0,1.4fr) minmax(340px,1fr); gap: 32px; }
+}
+@media (min-width:2200px) {
+  .rhythm-layout { grid-template-columns: minmax(0,1.15fr) minmax(0,1fr); }
+
+  .rhythm-sidebar { grid-template-columns: minmax(0,1.1fr) minmax(300px,.9fr); }
+
+  .rhythm-goals { display: block; }
+}
+@media (max-width:560px) {
+  .rhythm-toolbar { flex-wrap: wrap; gap: 12px; }
+
+  .rhythm-entry { grid-template-columns: 64px 10px minmax(0,1fr) auto; gap: 8px; padding-left: 10px; padding-right: 8px; }
+
+  .entry-semantic { font-size: 8px; letter-spacing: .04em; }
+
+  .rhythm-sidebar .quiet-section { padding-left: 0; padding-right: 0; }
+}
+.entry-copy > small { max-height: 90px; opacity: 1; overflow: hidden; }
+.rhythm-entry.done .entry-copy > small { display: block; max-height: 0; opacity: 0; margin-top: 0; }
+
+

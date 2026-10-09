@@ -86,3 +86,18 @@ No public unauthenticated review endpoint or service-role key has been introduce
 A live scheduler and model credentials are a later integration, not simulated
 with local canned messages. The manual boundary can already validate, persist
 and render genuine generated reviews.
+
+## Clarity iteration: longitudinal observations
+
+The version 1 input now includes a `longitudinal` object in addition to the completed week's observations. Existing version 1 reflection imports remain valid.
+
+- Four prior reviews and their recommendations, plus four recent Momentum observations.
+- Five weekly goal snapshots, preserving stable identities and carryover origins.
+- Optional intention `goalId` links with recorded completion and movement history. Completing an intention never automatically completes its goal.
+- Four preceding weeks of workout moves, skipped workouts, ended exercises and optional `skipReason` values.
+- Setup-scoped exercise progression facts and preceding sessions. Equipment, variation, load mode, load basis, unilateral status and unit must match. Missing or incompatible data cannot establish a trend.
+- Optional `rhythm.dayClosures[date] = { closedAt, note? }` groundwork. There is no Daily Close interface in this iteration.
+
+These are observations for the generation workflow, not AI pattern claims fabricated by the UI. Goal completion and an intention's present completion state are not timestamped; do not infer an earlier completion date from them. Historic Momentum is recomputed from available snapshots rather than stored as immutable past guidance.
+
+Raj may be addressed sparingly in meaningful guidance. The Today greeting uses his name; navigation, metric labels and workout logging remain concise.

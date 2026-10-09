@@ -4,9 +4,10 @@ export type DayLoad = 'red' | 'yellow' | 'green' | 'off'
 export interface Goal { text: string; done: boolean; id?: string; carriedFrom?: string; deleted?: boolean }
 export interface Meeting { id: string; title: string; date: string; start: number; end: number }
 export interface CalendarEvent { id: string; title: string; detail: string; at: number; endAt: number; kind: string; allDay?: boolean }
-export interface Intention { id: string; title: string; date: string; at?: number; duration: number; detail: string; done: boolean; moves: {from: string; to: string; at: string}[] }
+export interface Intention { goalId?: string; id: string; title: string; date: string; at?: number; duration: number; detail: string; done: boolean; moves: {from: string; to: string; at: string}[] }
 export interface RhythmState {
   intentions?: Intention[]
+  dayClosures?: Record<string, { closedAt: string; note?: string }>
   daily: Record<string, Record<string, boolean | number>>
   load: Record<string, DayLoad>
   weeklyWins: Record<string, Goal[]>
