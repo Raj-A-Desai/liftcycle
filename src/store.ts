@@ -3,14 +3,17 @@ import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import type { LiftCycleState, Exercise, Workout, Cycle, PlanItem, LoggedExercise } from './types'
 import { supabase } from './supabase'
-import { splitForCalendarDate } from './schedule'
-import { emptyRhythm, normalizeRhythm } from './rhythm'
+import { emptyRhythm, normalizeRhythm, dateKey } from './rhythm'
+import { plannedSplit } from './planning'
+import { progression } from './workoutIntelligence'
+import { saveWeeklyReview, validateWeeklyReview } from './weeklyReview'
 
 const LOCAL_KEY = 'liftcycle-state-v3'
 const DIRTY_KEY = `${LOCAL_KEY}:unsynced`
 const EMPTY: LiftCycleState = {
   schemaVersion: 3,
   rhythm: emptyRhythm(),
+  reviews: [], trainingMoves: [], dismissedSuggestions: [],
   unit: 'lb',
   library: [],
   plan: {
@@ -56,6 +59,9 @@ export const useLiftStore = defineStore('liftcycle', () => {
     const merged = { ...deepCopy(EMPTY), ...raw }
     merged.schemaVersion = 3
     merged.rhythm = normalizeRhythm(raw?.rhythm)
+    merged.reviews = Array.isArray(raw?.reviews) ? raw.reviews.filter((r: unknown)=>{try {validateWeeklyReview(r);return true} catch {return false}}) : []
+    merged.trainingMoves = Array.isArray(raw?.trainingMoves) ? raw.trainingMoves : []
+    merged.dismissedSuggestions = Array.isArray(raw?.dismissedSuggestions) ? raw.dismissedSuggestions : []
     merged.library = Array.isArray(raw?.library) ? raw.library : []
     merged.cycles = Array.isArray(raw?.cycles) ? raw.cycles : []
     merged.history = Array.isArray(raw?.history) ? raw.history : []
@@ -347,35 +353,15 @@ export const useLiftStore = defineStore('liftcycle', () => {
     return cycle
   }
 
-  function scheduledSplitForDate(date: string) {
-    const cycle = cycleForDate(date)
-    if (!cycle) return null
-    const splitId = splitForCalendarDate(cycle, date)
-    if (!splitId) return null
-    return cycle.splits.find(s => s.id === splitId) ?? null
-  }
+  function scheduledSplitForDate(date: string) { return plannedSplit(state.value,date) }
 
-  function suggestion(exerciseId: string, equipment?: string) {
+  function suggestion(exerciseId: string, equipment?: string, variation?: string, date = dateKey(), excludeId?: string) {
     const ex = state.value.library.find(e => e.id === exerciseId)
     if (!ex) return null
-    const past = [...state.value.history].sort((a,b) => a.date.localeCompare(b.date)).flatMap(w => w.exercises).filter(e => e.exerciseId === exerciseId)
-    const matching = equipment ? past.filter(e => e.equipment.trim().toLowerCase() === equipment.trim().toLowerCase()) : past
-    const last = matching.at(-1)
-    if (!last) return { label: 'Start conservatively', reps: ex.repMin || 6, load: 0 }
-    const work = last.sets.filter(s => s.done && !s.warmup && !s.skipped)
-    if (!work.length) return null
-    const minReps = Math.min(...work.map(s => s.reps))
-    const maxReps = Math.max(...work.map(s => s.reps))
-    const load = work.at(-1)?.weight ?? 0
-    const ratings = work.map(s => s.rir).filter((rir): rir is number => typeof rir === 'number' && Number.isFinite(rir))
-    // Never assume an unlogged RIR means the athlete had two reps in reserve.
-    if (ratings.length !== work.length) return { label: 'Repeat load; log RIR to refine progression', reps: maxReps, load }
-    const minRir = Math.min(...ratings)
-    if (maxReps >= (ex.repMax || 12) && minRir >= 2) return { label: 'Add a small amount of load', reps: ex.repMin || 6, load: load > 0 ? load + (state.value.unit === 'lb' ? 5 : 2.5) : 0 }
-    if (minReps >= (ex.repMin || 6) && minRir >= 2) return { label: 'Add reps', reps: Math.min((ex.repMax || 12), maxReps + 1), load }
-    if (minRir <= 1) return { label: 'Hold steady', reps: Math.max(ex.repMin || 6, minReps), load }
-    return { label: 'Repeat and reassess', reps: maxReps, load }
+    return progression(ex, state.value.history, {equipment:equipment ?? ex.equipment,variation:variation ?? ex.variation}, state.value.unit, date, excludeId)
   }
+
+  function saveReview(raw: unknown) { return saveWeeklyReview(state.value,raw) }
 
   function startWorkout(date: string, splitId?: string) {
     if (state.value.draft) return state.value.draft
@@ -390,7 +376,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
       exercises: (split?.items ?? []).map(item => {
         const ex = state.value.library.find(e => e.id === item.exerciseId)!
         const equipment = item.equipment ?? ex.equipment
-        const sug = suggestion(ex.id, equipment)
+        const sug = suggestion(ex.id, equipment, ex.variation, date)
         const logged: LoggedExercise = {
           id: uuid(), exerciseId: ex.id, name: ex.name, equipment, variation: ex.variation,
           loadMode: ex.loadMode, loadBasis: ex.loadBasis, unilateral: ex.unilateral, credits: deepCopy(ex.credits),
@@ -513,5 +499,5 @@ export const useLiftStore = defineStore('liftcycle', () => {
 
   return { state, hydrated, userId, userEmail, syncStatus, syncError, activeCycle, hydrateLocal, setSession, pullCloudOrSeed, pushCloud, useThisDevice, useCloudVersion, updateActiveCycle,
     addExercise, updateExercise, deleteExercise, addPlanItem, applyCycle, scheduledSplitForDate, suggestion, startWorkout, skipScheduledWorkout, resumeSkippedWorkout, saveDraft, editWorkout, deleteWorkout,
-    muscleTotalsForWeek, importState, exportState, signIn, signInWithPassword, setPassword, signOut }
+    muscleTotalsForWeek, saveReview, importState, exportState, signIn, signInWithPassword, setPassword, signOut }
 })

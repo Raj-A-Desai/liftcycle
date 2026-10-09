@@ -1,4 +1,5 @@
 import type { RhythmState } from './rhythm'
+import type { WeeklyReview } from './weeklyReview'
 export type MuscleCredits = Record<string, number>
 
 export interface Exercise {
@@ -34,6 +35,9 @@ export interface LoggedExercise {
   loadBasis: string
   unilateral: boolean
   credits: MuscleCredits
+  notes?: string
+  substitutedFrom?: string
+  endedAt?: string
   sets: LoggedSet[]
 }
 export interface Workout {
@@ -50,6 +54,9 @@ export interface Workout {
 }
 export interface LiftCycleState {
   rhythm?: RhythmState
+  reviews?: WeeklyReview[]
+  trainingMoves?: TrainingMove[]
+  dismissedSuggestions?: string[]
   schemaVersion: number
   unit: 'lb' | 'kg'
   library: Exercise[]
@@ -60,3 +67,5 @@ export interface LiftCycleState {
   draft: Workout | null
   settings?: { weeklyWorkoutGoal: number; defaultMuscleTarget: number; muscleTargets: Record<string, number> }
 }
+
+export interface TrainingMove { id: string; fromDate: string; date: string; splitId: string; cycleId: string; acceptedAt: string }

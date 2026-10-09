@@ -4,7 +4,9 @@ export type DayLoad = 'red' | 'yellow' | 'green' | 'off'
 export interface Goal { text: string; done: boolean; id?: string; carriedFrom?: string; deleted?: boolean }
 export interface Meeting { id: string; title: string; date: string; start: number; end: number }
 export interface CalendarEvent { id: string; title: string; detail: string; at: number; endAt: number; kind: string; allDay?: boolean }
+export interface Intention { id: string; title: string; date: string; at?: number; duration: number; detail: string; done: boolean; moves: {from: string; to: string; at: string}[] }
 export interface RhythmState {
+  intentions?: Intention[]
   daily: Record<string, Record<string, boolean | number>>
   load: Record<string, DayLoad>
   weeklyWins: Record<string, Goal[]>
@@ -16,8 +18,8 @@ export interface RhythmState {
 }
 export interface TimelineEntry {
   id: string; title: string; detail: string; at: number; endAt: number
-  kind: 'task' | 'meeting' | 'calendar' | 'workout'; allDay?: boolean
-  legacyIndex?: number; workout?: Workout; status?: 'planned' | 'completed' | 'skipped' | 'draft'
+  kind: 'task' | 'meeting' | 'calendar' | 'workout' | 'intention'; allDay?: boolean
+  intent?: 'fixed' | 'flexible'; untimed?: boolean; intentionId?: string; legacyIndex?: number; workout?: Workout; status?: 'planned' | 'completed' | 'skipped' | 'draft'
 }
 export const TIME_ZONE = 'America/New_York'
 export function dateKey(date = new Date()) {
@@ -83,12 +85,12 @@ export function formatHour(hour: number) {
   return `${h % 12 || 12}:${String(m % 60).padStart(2, '0')} ${h < 12 ? 'AM' : 'PM'}`
 }
 export function emptyRhythm(): RhythmState {
-  return { daily: {}, load: {}, weeklyWins: {}, meetings: [], calendarSnapshot: {}, labels: { work: 'Work', project: 'Project', business: 'Business', people: 'Family / friends / downtime', walking: 'A little fresh air' } }
+  return { intentions: [], daily: {}, load: {}, weeklyWins: {}, meetings: [], calendarSnapshot: {}, labels: { work: 'Work', project: 'Project', business: 'Business', people: 'Family / friends / downtime', walking: 'A little fresh air' } }
 }
 export function normalizeRhythm(raw: any): RhythmState {
   const base = emptyRhythm()
   if (!raw || typeof raw !== 'object') return base
-  return { ...base, ...raw, labels: { ...base.labels, ...raw.labels }, meetings: Array.isArray(raw.meetings) ? raw.meetings : [] }
+  return { ...base, ...raw, intentions: Array.isArray(raw.intentions) ? raw.intentions.map((i: Intention)=>({...i,moves:Array.isArray(i.moves)?i.moves:[]})) : [], labels: { ...base.labels, ...raw.labels }, meetings: Array.isArray(raw.meetings) ? raw.meetings : [] }
 }
 function federalHoliday(key: string) {
   const d = new Date(key + 'T12:00:00Z'), y = d.getUTCFullYear(), m = d.getUTCMonth() + 1, day = d.getUTCDate(), w = d.getUTCDay()
@@ -103,7 +105,7 @@ export function loadFor(rhythm: RhythmState, key: string): DayLoad {
 }
 export function routineFor(rhythm: RhythmState, key: string): TimelineEntry[] {
   const load = loadFor(rhythm,key), day = weekday(key), l = rhythm.labels
-  const task = (id: string, title: string, detail: string, at: number, endAt: number): TimelineEntry => ({id,title,detail,at,endAt,kind:'task'})
+  const task = (id: string, title: string, detail: string, at: number, endAt: number): TimelineEntry => ({id,title,detail,at,endAt,kind:'task',intent:id === 'standup' ? 'fixed' : 'flexible'})
   const walk = task('walk',load === 'red' ? 'Walk at least 20 minutes' : 'Walk 40–45 minutes',l.walking,load === 'red' ? 17.55 : load === 'off' ? 12 : 12.5,load === 'red' ? 17.55 + 1/3 : load === 'off' ? 12.75 : 13.25)
   const business = task('rrw',`${l.business} touchpoint`,'One useful follow-up, post, or admin task',17.5,18)
   const read = task('read','Read 15–20 minutes','Phone down · 10 minutes still counts',22.5,22.5 + 1/3)
@@ -136,21 +138,23 @@ export function entriesFor(rhythm: RhythmState, key: string, workouts: TimelineE
   let tasks = routineFor(rhythm,key)
   // A workout replaces the evening target, not fixed meetings or the rest of the day.
   if (workouts.length) tasks = tasks.filter(t=>!(t.at === 19 && weekday(key) !== 0))
-  const all: TimelineEntry[] = [...tasks,...workouts,
-    ...(rhythm.calendarSnapshot[key] || []).map(e=>({...e,kind:'calendar' as const})),
-    ...rhythm.meetings.filter(m=>m.date === key).map(m=>({id:m.id,title:m.title,detail:'Added by you',at:m.start/60,endAt:m.end/60,kind:'meeting' as const}))]
+  const all: TimelineEntry[] = [...tasks,...workouts.map(w=>({...w,intent:'flexible' as const})),
+    ...(rhythm.intentions || []).filter(i=>i.date === key).map(i=>({id:i.id,intentionId:i.id,title:i.title,detail:i.detail,at:i.at ?? 24,endAt:(i.at ?? 24)+i.duration/60,untimed:i.at === undefined,kind:'intention' as const,intent:'flexible' as const})),
+    ...(rhythm.calendarSnapshot[key] || []).map(e=>({...e,kind:'calendar' as const,intent:'fixed' as const})),
+    ...rhythm.meetings.filter(m=>m.date === key).map(m=>({id:m.id,title:m.title,detail:'Added by you',at:m.start/60,endAt:m.end/60,kind:'meeting' as const,intent:'fixed' as const}))]
   const workIds = new Set(['fed','fed-focus','fed-pm','fed-priority','fed-flex'])
   return all.flatMap(entry=>{
     if (entry.kind !== 'task' || !workIds.has(entry.id)) return [entry]
     let spans = [[entry.at,entry.endAt]]
     for (const other of all) {
-      if (other === entry || other.allDay || workIds.has(other.id)) continue
+      if (other === entry || other.allDay || other.untimed || workIds.has(other.id)) continue
       spans = spans.flatMap(([start,end])=>other.endAt <= start! || other.at >= end! ? [[start!,end!]] : [...(other.at > start! ? [[start!,other.at]] : []),...(other.endAt < end! ? [[other.endAt,end!]] : [])])
     }
     return spans.map(([at,endAt])=>({...entry,at:at!,endAt:endAt!}))
-  }).sort((a,b)=>Number(Boolean(b.allDay))-Number(Boolean(a.allDay)) || a.at-b.at || (a.kind === 'calendar' || a.kind === 'meeting' ? -1 : 1))
+  }).sort((a,b)=>Number(Boolean(a.untimed))-Number(Boolean(b.untimed)) || Number(Boolean(b.allDay))-Number(Boolean(a.allDay)) || a.at-b.at || (a.kind === 'calendar' || a.kind === 'meeting' ? -1 : 1))
 }
 export function isDone(rhythm: RhythmState, key: string, entry: TimelineEntry) {
+  if (entry.kind === 'intention') return Boolean(rhythm.intentions?.find(i=>i.id===entry.intentionId)?.done)
   if (entry.kind === 'workout') return entry.status === 'completed'
   const daily = rhythm.daily[key] || {}
   return Boolean(daily[entry.id === 'walk' || entry.id === 'read' ? entry.id : `task-${entry.id}`])
