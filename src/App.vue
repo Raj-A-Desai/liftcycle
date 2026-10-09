@@ -1,8 +1,13 @@
 <script setup lang="ts">
 import { newId } from './id'
-import { computed, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useLiftStore } from './store'
 import RhythmView from './components/RhythmView.vue'
+import TodayView from './components/TodayView.vue'
+import GuideView from './components/GuideView.vue'
+import ExerciseContext from './components/ExerciseContext.vue'
+import { skipRemainingSets, undoSkipRemaining, workoutProgress } from './workoutIntelligence'
+import type { SkipUndo } from './workoutIntelligence'
 import HomebaseBrand from './components/HomebaseBrand.vue'
 import AmbientAtmosphere from './components/AmbientAtmosphere.vue'
 import { dateKey } from './rhythm'
@@ -35,15 +40,15 @@ watch(ambientEnabled, enabled => {
   try { localStorage.setItem('homebase-ambient-enabled', String(enabled)) } catch { /* Keep the control usable without storage. */ }
 })
 const tab = ref<'schedule'|'cycle'|'exercises'|'history'|'progress'>('schedule')
-const section = ref<'rhythm'|'training'>('rhythm')
+const section = ref<'today'|'rhythm'|'training'|'guide'>('today')
 const loggerOpen = ref(false)
 function readRoute() {
   const parts = window.location.hash.replace('#/','').split('/')
-  section.value = parts[0] === 'training' ? 'training' : 'rhythm'
+  section.value = ['rhythm','training','guide'].includes(parts[0] || '') ? parts[0] as typeof section.value : 'today'
   if (['schedule','cycle','exercises','history','progress'].includes(parts[1] || '')) tab.value = parts[1] as typeof tab.value
 }
 readRoute()
-watch([section,tab],()=>{const hash = section.value === 'training' ? '#/training/'+tab.value : '#/rhythm'; if(window.location.hash !== hash) window.location.hash=hash})
+watch([section,tab],()=>{const hash = section.value === 'training' ? '#/training/'+tab.value : '#/'+section.value; if(window.location.hash !== hash) window.location.hash=hash})
 onMounted(()=>window.addEventListener('hashchange',readRoute))
 onBeforeUnmount(()=>window.removeEventListener('hashchange',readRoute))
 function openFromRhythm(date: string, id?: string) {
@@ -149,40 +154,11 @@ function onSetDone(set: LoggedSet) {
   if (set.done) set.skipped = false
 }
 
-function previousPerformanceLabel(exerciseId: string, equipment: string, beforeDate: string, currentWorkoutId: string) {
-  const normalizedEquipment = equipment.trim().toLowerCase()
-  const workouts = [...store.state.history]
-    .filter(w => w.id !== currentWorkoutId && w.status !== 'skipped' && w.date <= beforeDate)
-    .sort((a,b) => b.date.localeCompare(a.date))
-
-  const findPrevious = (requireEquipmentMatch: boolean) => {
-    for (const workout of workouts) {
-      const exercise = workout.exercises.find(ex => {
-        if (ex.exerciseId !== exerciseId) return false
-        if (!ex.sets.some(set => set.done && !set.warmup && !set.skipped)) return false
-        if (!requireEquipmentMatch || !normalizedEquipment) return true
-        return ex.equipment.trim().toLowerCase() === normalizedEquipment
-      })
-      if (exercise) return { workout, exercise }
-    }
-    return null
-  }
-
-  const previous = findPrevious(true) ?? findPrevious(false)
-  if (!previous) return ''
-
-  const date = new Date(previous.workout.date + 'T12:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-  const summary = actualExerciseSummary(previous.exercise, previous.workout.unit)
-  const equipmentNote = normalizedEquipment && previous.exercise.equipment.trim().toLowerCase() !== normalizedEquipment
-    ? ` · ${previous.exercise.equipment}`
-    : ''
-  return `${date} · ${summary.work}${summary.note ? ` · ${summary.note}` : ''}${equipmentNote}`
-}
-
 function addExerciseToDraft(exerciseId: string) {
   const draft = store.state.draft; const ex = store.state.library.find(e => e.id === exerciseId); if (!draft || !ex) return
   if (draft.exercises.some(e => e.exerciseId === exerciseId)) return
-  const sug = store.suggestion(ex.id, ex.equipment)
+  const sug = store.suggestion(ex.id, ex.equipment, ex.variation, draft.date, draft.id)
+  currentExercise.value=draft.exercises.length
   draft.exercises.push({
     id: newId(), exerciseId: ex.id, name: ex.name, equipment: ex.equipment, variation: ex.variation,
     loadMode: ex.loadMode, loadBasis: ex.loadBasis, unilateral: ex.unilateral, credits: JSON.parse(JSON.stringify(ex.credits)),
@@ -261,6 +237,24 @@ async function signOut() { try { await store.signOut() } catch (e:any) { toastEr
 
 const activeCycleLabel = computed(() => store.activeCycle ? `${store.activeCycle.name} · ${store.activeCycle.weeks} weeks` : 'No active cycle')
 
+const workoutDialog = ref<HTMLDialogElement|null>(null)
+const currentExercise = ref(0)
+const skipUndos = reactive<Record<string,SkipUndo>>({})
+watch(()=>store.state.draft?.exercises.length,length=>{currentExercise.value=Math.min(currentExercise.value,Math.max(0,(length || 1)-1))})
+const sessionProgress = computed(()=>store.state.draft ? workoutProgress(store.state.draft) : {total:0,completed:0,resolved:0})
+watch(()=>store.state.draft?.id,()=>{currentExercise.value=Math.max(0,store.state.draft?.exercises.findIndex(e=>e.sets.some(s=>!s.done&&!s.skipped&&!s.warmup)) ?? 0);for(const id of Object.keys(skipUndos))delete skipUndos[id]})
+watch([loggerOpen,()=>store.state.draft?.id],async()=>{await nextTick();if(loggerOpen.value&&store.state.draft&&!workoutDialog.value?.open)workoutDialog.value?.showModal();else workoutDialog.value?.close()})
+async function chooseExercise(index:number) {
+  currentExercise.value=index
+  await nextTick()
+  const card=workoutDialog.value?.querySelector<HTMLElement>('.drawer-card')
+  const exercise=workoutDialog.value?.querySelectorAll<HTMLElement>('.log-exercise')[index]
+  if(card&&exercise)card.scrollTo({top:Math.max(0,exercise.offsetTop-(workoutDialog.value?.querySelector<HTMLElement>('.drawer-head')?.offsetHeight || 100)-30),behavior:reducedMotion.value==='reduce'?'instant':'smooth'})
+}
+function skipExercise(index:number) {const ex=store.state.draft?.exercises[index];if(!ex)return;const undo=skipRemainingSets(ex);if(undo)skipUndos[ex.id]=undo}
+function undoExercise(index:number) {const ex=store.state.draft?.exercises[index];if(ex&&skipUndos[ex.id]){undoSkipRemaining(ex,skipUndos[ex.id]!);delete skipUndos[ex.id]}}
+function saveWorkout() {if(store.state.draft?.exercises.some(e=>e.sets.some(s=>!s.done&&!s.skipped&&!s.warmup))&&!confirm('Save with unfinished working sets? They will remain recorded as unfinished.'))return;store.saveDraft()}
+function discardDraft() {if(confirm('Discard this workout draft? Any previously saved session stays in history.'))store.state.draft=null}
 onMounted(async () => { store.hydrateLocal(); await store.setSession() })
 </script>
 
@@ -269,7 +263,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
   <div class="app-shell" :class="{'training-section':section==='training'}">
     <header class="topbar">
       <div>
-        <a class="homebase-brand" href="#/rhythm" aria-label="Homebase home" @click="section='rhythm'"><HomebaseBrand /></a>
+        <a class="homebase-brand" href="#/today" aria-label="Homebase home" @click="section='today'"><HomebaseBrand /></a>
       </div>
       <div class="account-cluster">
         <div class="sync-pill" :class="store.syncStatus">
@@ -320,10 +314,15 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
     </section>
     <div v-if="store.syncError || toastError" class="error-note">{{ store.syncError || toastError }}</div>
     <nav class="homebase-nav" aria-label="Homebase features">
+      <button :class="{active:section==='today'}" :aria-current="section==='today'?'page':undefined" @click="section='today'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8v10h-6v-7H9v7H3z"/></svg>Today<span>What matters now</span></button>
       <button :class="{active:section==='rhythm'}" :aria-current="section==='rhythm'?'page':undefined" @click="section='rhythm'"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2"/></svg>Rhythm<span>Your day & week</span></button>
       <button :class="{active:section==='training'}" :aria-current="section==='training'?'page':undefined" @click="section='training'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14m12-14v14M3 8v8m18-8v8M6 12h12"/></svg>LiftCycle<span>Your training</span></button>
+      <button :class="{active:section==='guide'}" :aria-current="section==='guide'?'page':undefined" @click="section='guide'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7a3 3 0 013 3v14a4 4 0 00-4-2H4V4zm10 3a3 3 0 013-3h3v15h-3a4 4 0 00-3 2"/></svg>Guide<span>Reflect & adjust</span></button>
       <button v-if="store.state.draft" class="resume-session" @click="loggerOpen=true">Resume {{ store.state.draft.name }}</button>
     </nav>
+    <div class="feature-content">
+    <TodayView v-if="section==='today' && store.hydrated" @rhythm="selectedDate=$event;section='rhythm'" @workout="openFromRhythm" @guide="section='guide'" @training="section='training';tab='schedule'" />
+    <GuideView v-if="section==='guide' && store.hydrated" />
     <RhythmView v-if="section==='rhythm' && store.hydrated" v-model:selected-date="selectedDate" @workout="openFromRhythm" @training="section='training';tab='progress'" />
     <nav v-if="section==='training'" class="tabs" aria-label="Training pages">
       <button v-for="t in ['schedule','cycle','exercises','history','progress']" :key="t" :class="{active:tab===t}" :aria-current="tab===t?'page':undefined" @click="tab=t as any">{{ t[0].toUpperCase()+t.slice(1) }}</button>
@@ -477,46 +476,43 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
       </section>
     </main>
 
-    <section v-if="store.state.draft && loggerOpen" class="workout-drawer" role="dialog" aria-modal="true" aria-label="Log workout">
+    </div>
+    <datalist id="workout-equipment"><option v-for="eq in equipmentOptions" :key="eq" :value="eq" /></datalist>
+    <dialog v-if="store.state.draft && loggerOpen" ref="workoutDialog" class="workout-drawer" aria-label="Log workout" @cancel="loggerOpen=false" @close="loggerOpen=false">
       <div class="drawer-card">
-        <div class="drawer-head"><div><div class="eyebrow">LOG WORKOUT</div><input class="workout-title" v-model="store.state.draft.name" /><input v-model="store.state.draft.date" type="date" /></div><button class="ghost" @click="loggerOpen=false">Close</button></div>
-        <article v-for="(ex,ei) in store.state.draft.exercises" :key="ex.id" class="log-exercise">
+        <div class="drawer-head"><div><div class="eyebrow">LOG WORKOUT</div><input class="workout-title" v-model="store.state.draft.name" aria-label="Workout name" /><input v-model="store.state.draft.date" type="date" aria-label="Workout date" /></div><button class="ghost" @click="loggerOpen=false">Close</button></div>
+        <div class="workout-progress-bar" role="progressbar" :aria-valuenow="sessionProgress.resolved" :aria-valuemax="sessionProgress.total||1" :aria-valuemin="0" aria-label="Resolved working sets"><i :style="{width:(sessionProgress.total?sessionProgress.resolved/sessionProgress.total*100:0)+'%'}"></i></div>
+        <div class="workout-workspace"><aside class="workout-overview"><div class="eyebrow">YOUR SESSION</div><p>{{ sessionProgress.completed }} working sets completed · {{ sessionProgress.resolved-sessionProgress.completed }} skipped</p><nav aria-label="Workout exercises"><button v-for="(ex,i) in store.state.draft.exercises" :key="ex.id" :class="{selected:currentExercise===i}" :aria-pressed="currentExercise===i" @click="chooseExercise(i)"><span>{{ String(i+1).padStart(2,'0') }}</span>{{ ex.name }}<small>{{ ex.sets.filter(s=>s.done&&!s.warmup&&!s.skipped).length }} / {{ ex.sets.filter(s=>!s.warmup).length }}</small></button></nav><p class="muted">Working sets drive progress. Warmups stay separate.</p></aside><div class="workout-main">
+        <article v-for="(ex,ei) in store.state.draft.exercises" :key="ex.id" class="log-exercise" :class="{'mobile-active':currentExercise===ei}">
           <div class="log-ex-head">
             <div class="log-ex-main">
               <h3>{{ ex.name }}</h3>
-              <div class="session-variation"><label>Equipment<input v-model="ex.equipment" list="equipment-list" placeholder="Choose equipment" /></label><label>Variation<input v-model="ex.variation" placeholder="Grip, bench angle…" /></label></div>
-            </div>
-            <div class="exercise-guidance">
-              <div v-if="previousPerformanceLabel(ex.exerciseId, ex.equipment, store.state.draft!.date, store.state.draft!.id)" class="last-performance">
-                <span>Last workout</span>
-                <strong>{{ previousPerformanceLabel(ex.exerciseId, ex.equipment, store.state.draft!.date, store.state.draft!.id) }}</strong>
-              </div>
-              <div v-if="store.suggestion(ex.exerciseId, ex.equipment)" class="today-guidance">
-                <span>Today</span>
-                <strong class="suggestion">{{ store.suggestion(ex.exerciseId, ex.equipment)?.label }}</strong>
-              </div>
+              <details class="session-setup"><summary>Today’s setup · {{ ex.equipment || 'choose equipment' }}{{ ex.variation ? ' · '+ex.variation : '' }}</summary><div class="session-variation"><label>Equipment<input v-model="ex.equipment" list="workout-equipment" placeholder="Choose equipment" /></label><label>Variation<input v-model="ex.variation" placeholder="Grip, bench angle…" /></label></div><label>Substituted for · optional<input v-model="ex.substitutedFrom" placeholder="Original movement" /></label><label>Exercise notes<textarea v-model="ex.notes" rows="2" placeholder="Setup, tempo, how it felt…" /></label></details>
             </div>
           </div>
+          <ExerciseContext :exercise="ex" :workout="store.state.draft" />
           <div class="set-head"><span>#</span><span>Weight</span><span>Reps</span><span>RIR</span><span>Warmup</span><span>Skip</span><span>Done</span></div>
-          <div v-for="(s,si) in ex.sets" :key="s.id" class="set-row" :class="{done:s.done,skipped:s.skipped}">
+          <div v-for="(s,si) in ex.sets" :key="s.id" class="set-row" :class="{done:s.done,skipped:s.skipped,warmup:s.warmup,'current-set':!s.done&&!s.skipped&&!s.warmup&&ex.sets.findIndex(x=>!x.done&&!x.skipped&&!x.warmup)===si}">
             <span>{{ si+1 }}</span>
-            <input v-model.number="s.weight" :aria-label="`${ex.name} set ${si+1} weight`" type="number" step="0.5" />
-            <input v-model.number="s.reps" :aria-label="`${ex.name} set ${si+1} reps`" type="number" min="0" />
+            <input v-model.number="s.weight" :aria-label="`${ex.name} set ${si+1} weight`" type="number" min="0" inputmode="decimal" step="0.5" :disabled="s.skipped" />
+            <input v-model.number="s.reps" :aria-label="`${ex.name} set ${si+1} reps`" type="number" min="0" inputmode="numeric" :disabled="s.skipped" />
             <span v-if="s.warmup || s.skipped" class="rir-not-applicable" :aria-label="s.warmup ? 'RIR not needed for warmup sets' : 'RIR not needed for skipped sets'">—</span>
-            <input v-else :value="s.rir ?? ''" :aria-label="`${ex.name} set ${si+1} RIR`" @input="s.rir = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" type="number" min="0" max="5" step="0.5" placeholder="—" />
-            <input v-model="s.warmup" :aria-label="`${ex.name} set ${si+1} warmup`" type="checkbox" :disabled="s.skipped" @change="s.warmup && (s.rir=null)" />
-            <input v-model="s.skipped" :aria-label="`${ex.name} set ${si+1} skip`" type="checkbox" @change="onSetSkipped(s)" />
-            <input v-model="s.done" :aria-label="`${ex.name} set ${si+1} done`" type="checkbox" @change="onSetDone(s)" />
+            <input v-else :value="s.rir ?? ''" :aria-label="`${ex.name} set ${si+1} RIR`" @input="s.rir = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" type="number" inputmode="decimal" min="0" max="5" step="0.5" placeholder="—" />
+            <label class="set-toggle"><input v-model="s.warmup" :aria-label="`${ex.name} set ${si+1} warmup`" type="checkbox" :disabled="s.skipped" @change="s.warmup && (s.rir=null)" /></label>
+            <label class="set-toggle"><input v-model="s.skipped" :aria-label="`${ex.name} set ${si+1} skip`" type="checkbox" @change="onSetSkipped(s)" /></label>
+            <label class="set-toggle"><input v-model="s.done" :aria-label="`${ex.name} set ${si+1} done`" type="checkbox" @change="onSetDone(s)" /></label>
           </div>
-          <button class="text-btn" @click="addSet(ei)">+ Add set</button>
+          <div class="exercise-actions"><button class="text-btn" @click="addSet(ei)">+ Add set</button><button v-if="ex.sets.some(s=>!s.done&&!s.skipped&&!s.warmup)" class="text-btn muted" @click="skipExercise(ei)">Skip remaining sets</button><span v-if="skipUndos[ex.id]" class="skip-notice" role="status">Remaining working sets skipped <button class="text-btn" @click="undoExercise(ei)">Undo</button></span></div>
         </article>
-        <select class="full-select" @change="addExerciseToDraft(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value=''">
+        <div v-if="store.state.draft.exercises.length" class="mobile-exercise-controls"><button class="ghost" :disabled="currentExercise===0" @click="chooseExercise(currentExercise-1)">← Previous</button><span>{{ currentExercise+1 }} / {{ store.state.draft.exercises.length }}</span><button class="ghost" :disabled="currentExercise>=store.state.draft.exercises.length-1" @click="chooseExercise(currentExercise+1)">Next →</button></div>
+        <select class="full-select" aria-label="Add exercise to workout" @change="addExerciseToDraft(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value=''">
           <option value="">+ Add exercise to workout</option><option v-for="e in store.state.library.filter(e=>!store.state.draft!.exercises.some(x=>x.exerciseId===e.id))" :key="e.id" :value="e.id">{{ e.name }}</option>
         </select>
-        <textarea v-model="store.state.draft.notes" placeholder="Workout notes" rows="2"></textarea>
-        <div class="drawer-actions"><button class="ghost" @click="store.state.draft=null">Discard changes</button><button class="primary" @click="store.saveDraft()">Save workout</button></div>
+        <textarea aria-label="Workout notes" v-model="store.state.draft.notes" placeholder="Workout notes" rows="2"></textarea>
+        </div></div>
+        <div class="drawer-actions"><button class="ghost" @click="discardDraft">Discard changes</button><button class="primary" @click="saveWorkout">Save workout</button></div>
       </div>
-    </section>
+    </dialog>
 
     <footer>
       <div><strong class="footer-wordmark">homebase</strong><span>{{ store.userId ? 'Private cloud sync + local cache' : 'Saved in this browser' }}</span></div>
