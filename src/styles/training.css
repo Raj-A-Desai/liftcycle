@@ -6,7 +6,12 @@
 .workout-drawer:not([open]) { display: none; }
 .workout-drawer::backdrop { background: var(--overlay); }
 .drawer-card { width: min(1500px,96%); border: 0; border-radius: var(--radius-dialog); max-height: 94dvh; background: var(--surface-low); }
-.drawer-head { top: -20px; padding: 12px 0 18px; }
+.drawer-head { top: -20px; padding: 6px 0; align-items: center; gap: 8px; }
+.drawer-head > div { display: flex; align-items: center; gap: 8px; flex: 1; min-width: 0; }
+.drawer-head .eyebrow { display: none; }
+.drawer-head .workout-title { flex: 1; width: 0; min-width: 0; font-size: 20px; }
+.drawer-head input[type=date] { flex: 0 0 132px; width: 132px; min-height: 34px; padding: 4px 6px; font-size: 12px; }
+.drawer-head > button { flex: 0 0 auto; min-height: 44px; padding: 6px 8px; font-size: 14px; }
 .workout-progress-bar { height: 3px; background: var(--surface-hover); border-radius: 3px; margin-bottom: 24px; overflow: hidden; }
 .workout-progress-bar i { display: block; height: 100%; background: var(--brand-orange); }
 .workout-workspace { display: grid; grid-template-columns: 240px minmax(0,1fr); gap: 32px; align-items: start; }
@@ -25,7 +30,7 @@
 .log-ex-head .exercise-tools[open] { flex: 0 0 100%; width: 100%; max-height: 45dvh; overflow-y: auto; }
 .exercise-tools .session-setup, .exercise-tools .session-setup label { min-width: 0; width: 100%; }
 .exercise-tools input, .exercise-tools textarea { min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; }
-.log-ex-head .exercise-tools > summary { padding: 10px 0; }
+.log-ex-head .exercise-tools > summary { padding: 8px 0; }
 .add-working-row { display: block; width: 100%; min-height: 48px; text-align: left; padding: 12px; margin-top: 8px; border-radius: var(--radius-control); }
 .add-working-row:hover { background: var(--surface-hover); }
 .session-setup { margin: 10px 0 16px; color: var(--text-muted); font-size: 12px; }
@@ -156,10 +161,13 @@
   .context-summary { gap: 10px; }
   .last-performance > span, .today-guidance > span { font-size: 10px; }
   .log-exercise { margin-bottom: 12px; padding-bottom: 18px; }
-  .drawer-head { padding-bottom: 8px; }
+  .drawer-head { padding-bottom: 6px; }
   .workout-progress-bar { margin-bottom: 14px; }
   .drawer-head input[type=date] { font-size: 12px; min-height: 32px; }
   .drawer-head .eyebrow { display: none; }
   .training-history-row { display: block; }
   .training-history-row span { display: block; margin-top: 4px; font-size: 13px; }
 }
+
+.log-exercise > .log-ex-head { padding-block: 2px; margin-bottom: 8px; }
+.log-exercise > .log-ex-head h3 { font-size: 19px; line-height: 1.25; }
