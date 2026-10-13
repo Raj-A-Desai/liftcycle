@@ -7,6 +7,7 @@ import TodayView from './components/TodayView.vue'
 import GuideView from './components/GuideView.vue'
 import TrainingHome from './components/TrainingHome.vue'
 import ExerciseContext from './components/ExerciseContext.vue'
+import SetReference from './components/SetReference.vue'
 import { skipRemainingSets, undoSkipRemaining, workoutProgress } from './workoutIntelligence'
 import type { SkipUndo } from './workoutIntelligence'
 import HomebaseBrand from './components/HomebaseBrand.vue'
@@ -502,7 +503,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
           </details>
           <div v-if="skipUndos[ex.id] || ex.endedAt" class="skip-notice" role="status">Remaining working sets skipped<button v-if="skipUndos[ex.id]" class="text-btn" @click="undoExercise(ei)">Undo</button><button class="text-btn" @click="reasonOpen[ex.id]=!reasonOpen[ex.id]">{{ ex.skipReason?'Edit reason':'Add reason' }}</button><small v-if="ex.skipReason"> · {{ ex.skipReason }}</small><label v-if="reasonOpen[ex.id]">Reason · optional<select v-model="ex.skipReason" :aria-label="ex.name+' skip reason'"><option :value="undefined">No reason</option><option v-for="reason in skipReasons" :key="reason" :value="reason">{{ reason }}</option></select></label></div>
           <button v-if="ex.sets.some(s=>s.done||s.skipped)" class="text-btn resolved-sets-toggle" :aria-expanded="!!allSets[ex.id]" @click="allSets[ex.id]=!allSets[ex.id]">{{ allSets[ex.id]?'Focus on remaining sets':'Review completed / skipped sets' }} ({{ ex.sets.filter(s=>s.done||s.skipped).length }})</button>
-          <div class="set-head"><span>#</span><span>Weight</span><span>Reps</span><span>RIR</span><span>Done</span><span>More</span></div>
+          <div class="set-head"><span>#</span><span>Weight</span><span>Reps</span><span>RIR</span><span>Done</span></div>
           <div v-for="(s,si) in ex.sets" :key="s.id" class="set-row" :class="{done:s.done,skipped:s.skipped,warmup:s.warmup,'show-resolved':allSets[ex.id],'current-set':!s.done&&!s.skipped&&!s.warmup&&ex.sets.findIndex(x=>!x.done&&!x.skipped&&!x.warmup)===si}">
             <span>{{ si+1 }}</span>
             <input v-model.number="s.weight" :aria-label="`${ex.name} set ${si+1} weight`" type="number" min="0" inputmode="decimal" step="0.5" :disabled="s.skipped" />
@@ -510,7 +511,13 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
             <span v-if="s.warmup || s.skipped" class="rir-not-applicable" :aria-label="s.warmup ? 'RIR not needed for warmup sets' : 'RIR not needed for skipped sets'">—</span>
             <input v-else :value="s.rir ?? ''" :aria-label="`${ex.name} set ${si+1} RIR`" @input="s.rir = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" type="number" inputmode="decimal" min="0" max="5" step="0.5" placeholder="—" />
             <label class="set-toggle"><input v-model="s.done" :aria-label="`${ex.name} set ${si+1} done`" type="checkbox" @change="onSetDone(s)" /></label>
-            <details class="set-options"><summary :aria-label="`${ex.name} set ${si+1} options`">···</summary><div><label><input v-model="s.warmup" :aria-label="`${ex.name} set ${si+1} warmup`" type="checkbox" :disabled="s.skipped" @change="s.warmup && (s.rir=null)" />Warmup</label><label><input v-model="s.skipped" :aria-label="`${ex.name} set ${si+1} skip`" type="checkbox" @change="onSetSkipped(s)" />Skip set</label></div></details>
+            <div class="set-row-meta">
+              <SetReference :exercise="ex" :workout="store.state.draft" :index="si" />
+              <div class="set-inline-actions">
+                <button type="button" class="set-action" :class="{active:s.warmup}" :aria-pressed="!!s.warmup" :aria-label="`${ex.name} set ${si+1} warmup`" :disabled="s.skipped" @click="s.warmup=!s.warmup; if(s.warmup)s.rir=null"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 19c-3-4 3-6 0-10m4 10c-3-4 3-8 0-14m4 14c-3-4 3-6 0-10" /></svg>Warmup</button>
+                <button type="button" class="set-action" :class="{active:s.skipped}" :aria-pressed="!!s.skipped" :aria-label="`${s.skipped?'Unskip':'Skip'} ${ex.name} set ${si+1}`" @click="s.skipped=!s.skipped; onSetSkipped(s); if(s.skipped)allSets[ex.id]=true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 6 9 6-9 6V6Zm13 0v12" /></svg>{{ s.skipped?'Unskip':'Skip' }}</button>
+              </div>
+            </div>
           </div>
 
         </article>

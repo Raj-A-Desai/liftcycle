@@ -105,7 +105,18 @@
 .exercise-tools { color: var(--text-muted); font-size: 12px; margin: 8px 0 16px; }
 .exercise-tools > summary, .session-extras > summary { color: var(--brand-lavender); min-height: 44px; padding: 12px 0; cursor: pointer; }
 .exercise-trend { color: var(--text-muted); font-size: 12px; margin: 10px 0; }
-.set-head, .set-row { grid-template-columns: 28px minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) 52px 44px; gap: 12px; }
+.set-head, .set-row { grid-template-columns: 28px minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) 52px; gap: 12px; }
+.set-row-meta { grid-column: 1 / -1; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; }
+.set-reference { color: var(--text-muted); font-size: 12px; line-height: 1.6; }
+.set-reference-label { margin-right: 8px; }
+.set-reference strong { color: var(--text); font-weight: 500; }
+.set-reference small { margin-left: 10px; color: var(--text-muted); }
+.set-inline-actions { display: flex; gap: 6px; margin-left: auto; }
+.set-action { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; padding: 6px 9px; border: 0; border-radius: 8px; background: transparent; color: var(--text-muted); font-size: 12px; }
+.set-action svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.set-action:hover, .set-action.active { background: var(--surface-hover); color: var(--brand-orange); }
+.set-action:focus-visible { outline: 2px solid var(--brand-orange); outline-offset: 2px; }
+.set-action:disabled { opacity: .4; cursor: not-allowed; }
 .set-options { position: relative; }
 .set-options > summary { list-style: none; font-size: 20px; min-height: 44px; display: grid; place-items: center; cursor: pointer; }
 .set-options > summary::-webkit-details-marker { display: none; }
@@ -125,7 +136,8 @@
   .set-row.done:not(.show-resolved), .set-row.skipped:not(.show-resolved) { display: none; }
 }
 @media (max-width:560px) {
-  .set-head, .set-row { grid-template-columns: 18px minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) 44px 44px; gap: 6px; }
+  .set-head, .set-row { grid-template-columns: 18px minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) 44px; gap: 6px; }
+  .set-reference small { display: none; }
   .set-head { font-size: 10px; padding-inline: 8px; }
   .set-row { padding: 10px 8px; }
   .context-summary { gap: 10px; }
