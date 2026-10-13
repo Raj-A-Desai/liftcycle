@@ -124,7 +124,6 @@
 .set-options label { display: flex; align-items: center; gap: 14px; min-height: 48px; color: var(--text); font-size: 14px; cursor: pointer; }
 .skip-notice { padding: 10px 0; line-height: 1.6; }
 .skip-notice label { display: grid; gap: 8px; max-width: 340px; padding: 8px 0; }
-.resolved-sets-toggle { display: none; }
 .session-extras { color: var(--text-muted); margin: 16px 0; }
 @media (max-width:820px) {
   .train-layout { display: block; }
@@ -132,8 +131,6 @@
   .log-ex-head { padding-top: 0; }
   .exercise-history-details { margin-bottom: 0; }
   .exercise-tools { margin: 0 0 14px; }
-  .resolved-sets-toggle { display: block; font-size: 12px; min-height: 44px; margin: 8px 0; }
-  .set-row.done:not(.show-resolved), .set-row.skipped:not(.show-resolved) { display: none; }
 }
 @media (max-width:560px) {
   .set-head, .set-row { grid-template-columns: 18px minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) 44px; gap: 6px; }
