@@ -1,5 +1,6 @@
 import { newId } from './id'
-import { activateWorkoutDraft, findWorkoutDraft } from './workoutDrafts'
+import { mergeCloudState } from './cloudMerge'
+import { activateWorkoutDraft, findWorkoutDraft, resolveSkippedDraft } from './workoutDrafts'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import type { LiftCycleState, Exercise, Workout, Cycle, PlanItem, LoggedExercise } from './types'
@@ -11,6 +12,7 @@ import { saveWeeklyReview, validateWeeklyReview } from './weeklyReview'
 
 const LOCAL_KEY = 'liftcycle-state-v3'
 const DIRTY_KEY = `${LOCAL_KEY}:unsynced`
+const BASE_KEY = `${LOCAL_KEY}:cloud-base`
 const EMPTY: LiftCycleState = {
   schemaVersion: 3,
   rhythm: emptyRhythm(),
@@ -44,7 +46,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
   const hydrated = ref(false)
   const userId = ref<string | null>(null)
   const userEmail = ref<string | null>(null)
-  const syncStatus = ref<'local'|'syncing'|'synced'|'offline'|'error'|'conflict'>('local')
+  const syncStatus = ref<'local'|'syncing'|'synced'|'offline'|'error'>('local')
   const lastCloudUpdatedAt = ref<string | null>(null)
   const syncError = ref('')
   let syncTimer: number | undefined
@@ -54,6 +56,9 @@ export const useLiftStore = defineStore('liftcycle', () => {
   let pushing = false
   let pushRequested = false
   let localRevision = 0
+  let cloudBase: LiftCycleState | null = null
+  let pulling: Promise<void> | null = null
+  let lifecycleAttached = false
 
   const activeCycle = computed(() => state.value.cycles.find(c => c.id === state.value.activeCycleId) ?? null)
 
@@ -105,21 +110,44 @@ export const useLiftStore = defineStore('liftcycle', () => {
     localStorage.setItem(LOCAL_KEY, JSON.stringify(state.value))
   }
 
-  function applyCloud(data: any, updatedAt: string) {
-    applyingCloud = true
-    try { state.value = normalize(data) } finally { applyingCloud = false }
-    persistLocal()
-    localStorage.removeItem(DIRTY_KEY)
+  function rememberCloud(data: LiftCycleState, updatedAt: string) {
+    cloudBase = deepCopy(data)
     lastCloudUpdatedAt.value = updatedAt
-    syncError.value = ''
-    syncStatus.value = 'synced'
+    localStorage.setItem(BASE_KEY, JSON.stringify({ owner: userId.value, state: cloudBase, updatedAt }))
   }
 
-  // A conflicting remote snapshot must never silently erase an offline workout.
-  function showConflict() {
-    window.clearTimeout(syncTimer)
-    syncStatus.value = 'conflict'
-    syncError.value = 'Another device has changes. Choose which version to keep or export a backup first.'
+  function restoreCloudBase() {
+    cloudBase = null
+    lastCloudUpdatedAt.value = null
+    try {
+      const saved = JSON.parse(localStorage.getItem(BASE_KEY) || 'null')
+      if (saved?.owner === userId.value) {
+        cloudBase = normalize(saved.state)
+        lastCloudUpdatedAt.value = saved.updatedAt
+      }
+    } catch { /* First sync also supports older caches without a baseline. */ }
+  }
+
+  function applyCloud(data: any, updatedAt: string) {
+    const remote = normalize(data)
+    const dirty = Boolean(localStorage.getItem(DIRTY_KEY))
+    if (dirty && !cloudBase) {
+      // Automatic local recovery copy for upgrading caches created before merge sync.
+      localStorage.setItem(`${LOCAL_KEY}:before-auto-merge`, JSON.stringify(state.value))
+    }
+    const merged = dirty ? normalize(mergeCloudState(cloudBase, state.value, remote)) : remote
+    applyingCloud = true
+    try { state.value = merged } finally { applyingCloud = false }
+    rememberCloud(remote, updatedAt)
+    persistLocal()
+    syncError.value = ''
+    if (JSON.stringify(merged) === JSON.stringify(remote)) {
+      localStorage.removeItem(DIRTY_KEY)
+      syncStatus.value = 'synced'
+    } else {
+      localStorage.setItem(DIRTY_KEY, '1')
+      syncStatus.value = 'syncing'
+    }
   }
 
   async function setSession() {
@@ -128,6 +156,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
     if (error) { syncError.value = error.message; syncStatus.value = 'error'; return }
     userId.value = data.session?.user.id ?? null
     userEmail.value = data.session?.user.email ?? null
+    restoreCloudBase()
     if (userId.value) await pullCloudOrSeed()
     subscribeRealtime()
     supabase.auth.onAuthStateChange((event, session) => {
@@ -139,7 +168,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
       cloudReady = false
       userId.value = nextId
       userEmail.value = session?.user.email ?? null
-      lastCloudUpdatedAt.value = null
+      restoreCloudBase()
       if (nextId) {
         // Run outside the auth callback to avoid Supabase auth locking/deadlocks.
         window.setTimeout(() => { void pullCloudOrSeed().then(subscribeRealtime) }, 0)
@@ -148,19 +177,28 @@ export const useLiftStore = defineStore('liftcycle', () => {
         syncError.value = ''
       }
     })
-    window.addEventListener('online', () => {
-      if (!userId.value) return
-      if (!cloudReady) void pullCloudOrSeed()
-      else if (localStorage.getItem(DIRTY_KEY) && syncStatus.value !== 'conflict') void pushCloud()
-    })
-    window.addEventListener('offline', () => { if (userId.value) syncStatus.value = 'offline' })
+    if (!lifecycleAttached) {
+      lifecycleAttached = true
+      const refresh = () => { if (userId.value && navigator.onLine) void pullCloudOrSeed() }
+      window.addEventListener('online', refresh)
+      window.addEventListener('focus', refresh)
+      document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') refresh() })
+      window.addEventListener('offline', () => { if (userId.value) syncStatus.value = 'offline' })
+      window.setInterval(() => { if (document.visibilityState === 'visible') refresh() }, 30000)
+    }
   }
 
   async function pullCloudOrSeed() {
+    if (pulling) return pulling
+    if (pushing) { pushRequested = true; return }
+    pulling = readCloud()
+    try { await pulling } finally { pulling = null }
+  }
+
+  async function readCloud() {
     if (!supabase || !userId.value) return
+    if (!navigator.onLine) { syncStatus.value = 'offline'; return }
     const owner = userId.value
-    cloudReady = false
-    syncStatus.value = 'syncing'
     const { data, error } = await supabase.from('user_app_state')
       .select('state, updated_at').eq('user_id', owner).maybeSingle()
     if (owner !== userId.value) return
@@ -169,64 +207,69 @@ export const useLiftStore = defineStore('liftcycle', () => {
       syncStatus.value = navigator.onLine ? 'error' : 'offline'
       return
     }
-    if (data?.state) {
-      if (localStorage.getItem(DIRTY_KEY) && data.updated_at !== lastCloudUpdatedAt.value) {
-        cloudReady = true
-        showConflict()
-        return
-      }
-      applyCloud(data.state, data.updated_at)
-      cloudReady = true
-      return
-    }
-    lastCloudUpdatedAt.value = null
     cloudReady = true
-    await pushCloud()
+    if (data?.state && (!lastCloudUpdatedAt.value || data.updated_at >= lastCloudUpdatedAt.value)) applyCloud(data.state, data.updated_at)
+    else if (!data?.state) { cloudBase = null; lastCloudUpdatedAt.value = null; localStorage.setItem(DIRTY_KEY, '1') }
+    if (localStorage.getItem(DIRTY_KEY)) await pushCloud()
   }
 
-  function hasSyncConflict() { return syncStatus.value === 'conflict' }
-
   async function pushCloud() {
-    if (!supabase || !userId.value || !cloudReady || syncStatus.value === 'conflict') return
+    if (!supabase || !userId.value || !cloudReady || !localStorage.getItem(DIRTY_KEY)) return
     if (!navigator.onLine) { syncStatus.value = 'offline'; return }
     if (pushing) { pushRequested = true; return }
     pushing = true
     syncStatus.value = 'syncing'
     const owner = userId.value
-    const revision = localRevision
-    const snapshot = JSON.parse(JSON.stringify(state.value))
-    const now = new Date().toISOString()
-    const fields = { state: snapshot, schema_version: snapshot.schemaVersion, client_updated_at: now }
     try {
-      if (lastCloudUpdatedAt.value) {
-        const { data, error } = await supabase.from('user_app_state').update(fields)
-          .eq('user_id', owner).eq('updated_at', lastCloudUpdatedAt.value)
-          .select('updated_at').maybeSingle()
-        if (owner !== userId.value) return
-        if (error) throw error
-        if (!data) { showConflict(); return }
-        lastCloudUpdatedAt.value = data.updated_at
-      } else {
-        const { data, error } = await supabase.from('user_app_state').insert({ user_id: owner, ...fields })
-          .select('updated_at').single()
-        if (owner !== userId.value) return
-        if (error?.code === '23505') { showConflict(); return }
-        if (error) throw error
-        lastCloudUpdatedAt.value = data.updated_at
+      for (let attempt = 0; attempt < 4; attempt++) {
+        const revision = localRevision
+        const snapshot = deepCopy(state.value)
+        const now = new Date().toISOString()
+        const fields = { state: snapshot, schema_version: snapshot.schemaVersion, client_updated_at: now }
+        if (lastCloudUpdatedAt.value) {
+          const { data, error } = await supabase.from('user_app_state').update(fields)
+            .eq('user_id', owner).eq('updated_at', lastCloudUpdatedAt.value)
+            .select('updated_at').maybeSingle()
+          if (owner !== userId.value) return
+          if (error) throw error
+          if (!data) {
+            const latest = await supabase.from('user_app_state').select('state, updated_at').eq('user_id', owner).single()
+            if (owner !== userId.value) return
+            if (latest.error) throw latest.error
+            applyCloud(latest.data.state, latest.data.updated_at)
+            continue
+          }
+          rememberCloud(snapshot, data.updated_at)
+        } else {
+          const { data, error } = await supabase.from('user_app_state').insert({ user_id: owner, ...fields })
+            .select('updated_at').single()
+          if (owner !== userId.value) return
+          if (error?.code === '23505') {
+            const latest = await supabase.from('user_app_state').select('state, updated_at').eq('user_id', owner).single()
+            if (owner !== userId.value) return
+            if (latest.error) throw latest.error
+            applyCloud(latest.data.state, latest.data.updated_at)
+            continue
+          }
+          if (error) throw error
+          rememberCloud(snapshot, data.updated_at)
+        }
+        syncError.value = ''
+        if (revision === localRevision) {
+          localStorage.removeItem(DIRTY_KEY)
+          syncStatus.value = 'synced'
+        } else {
+          pushRequested = true
+        }
+        return
       }
-      syncError.value = ''
-      if (revision === localRevision) {
-        localStorage.removeItem(DIRTY_KEY)
-        syncStatus.value = 'synced'
-      } else {
-        pushRequested = true
-      }
+      pushRequested = true
     } catch (error: any) {
       syncError.value = error?.message ?? 'Could not sync. Data remains saved locally.'
       syncStatus.value = navigator.onLine ? 'error' : 'offline'
     } finally {
       pushing = false
-      if (pushRequested && !hasSyncConflict()) {
+      if (pushRequested && owner === userId.value) {
         pushRequested = false
         window.clearTimeout(syncTimer)
         syncTimer = window.setTimeout(() => void pushCloud(), 400)
@@ -234,42 +277,15 @@ export const useLiftStore = defineStore('liftcycle', () => {
     }
   }
 
-  // Explicitly replacing an existing cloud snapshot is only exposed as a user action.
+  // Import/account actions use the same merge-safe path as normal device edits.
   async function useThisDevice() {
-    if (!supabase || !userId.value || !navigator.onLine) return
-    window.clearTimeout(syncTimer)
-    syncStatus.value = 'syncing'
-    const owner = userId.value
-    const revision = localRevision
-    const now = new Date().toISOString()
-    const { data, error } = await supabase.from('user_app_state').upsert({
-      user_id: owner, state: JSON.parse(JSON.stringify(state.value)),
-      schema_version: state.value.schemaVersion, client_updated_at: now,
-    }, { onConflict: 'user_id' }).select('updated_at').single()
-    if (owner !== userId.value) return
-    if (error) { syncStatus.value = 'error'; syncError.value = error.message; return }
-    lastCloudUpdatedAt.value = data.updated_at
-    syncError.value = ''
-    if (revision === localRevision) localStorage.removeItem(DIRTY_KEY)
-    cloudReady = true
-    syncStatus.value = 'synced'
-    if (revision !== localRevision) queueCloudSync()
-  }
-
-  async function useCloudVersion() {
-    if (!supabase || !userId.value) return
-    syncStatus.value = 'syncing'
-    const { data, error } = await supabase.from('user_app_state')
-      .select('state, updated_at').eq('user_id', userId.value).single()
-    if (error) { syncStatus.value = 'error'; syncError.value = error.message; return }
-    applyCloud(data.state, data.updated_at)
-    cloudReady = true
+    await pullCloudOrSeed()
   }
 
   function queueCloudSync() {
     persistLocal()
     localStorage.setItem(DIRTY_KEY, '1')
-    if (!userId.value || !supabase || !cloudReady || syncStatus.value === 'conflict') return
+    if (!userId.value || !supabase || !cloudReady) return
     window.clearTimeout(syncTimer)
     syncTimer = window.setTimeout(() => void pushCloud(), 650)
   }
@@ -284,9 +300,12 @@ export const useLiftStore = defineStore('liftcycle', () => {
         if (owner !== userId.value || pushing) return
         const record = payload.new as { updated_at?: string; state?: LiftCycleState }
         if (!record?.state || !record.updated_at || record.updated_at === lastCloudUpdatedAt.value) return
-        if (localStorage.getItem(DIRTY_KEY)) { showConflict(); return }
+        if (lastCloudUpdatedAt.value && record.updated_at < lastCloudUpdatedAt.value) return
         applyCloud(record.state, record.updated_at)
-      }).subscribe()
+        if (localStorage.getItem(DIRTY_KEY)) queueCloudSync()
+      }).subscribe(status => {
+        if (status === 'SUBSCRIBED' && owner === userId.value) void pullCloudOrSeed()
+      })
     unsubscribeRealtime = () => { void client.removeChannel(channel) }
   }
 
@@ -392,7 +411,13 @@ export const useLiftStore = defineStore('liftcycle', () => {
     return activateWorkoutDraft(state.value, workout)
   }
 
+  function skipWorkoutDraft(id: string) {
+    resolveSkippedDraft(state.value, id)
+  }
+
   function skipScheduledWorkout(date: string) {
+    const draft = [state.value.draft, ...(state.value.pausedDrafts ?? [])].find(w => w?.date === date)
+    if (draft) { skipWorkoutDraft(draft.id); return }
     if (state.value.history.some(w => w.date === date)) return
     const split = scheduledSplitForDate(date)
     if (!split) return
@@ -494,11 +519,13 @@ export const useLiftStore = defineStore('liftcycle', () => {
     }
     applyingCloud = true
     try { state.value = deepCopy(EMPTY) } finally { applyingCloud = false }
+    localStorage.removeItem(BASE_KEY)
+    cloudBase = null
     localStorage.removeItem(LOCAL_KEY)
     localStorage.removeItem('homebase-rhythm-before-import')
   }
 
-  return { state, hydrated, userId, userEmail, syncStatus, syncError, activeCycle, hydrateLocal, setSession, pullCloudOrSeed, pushCloud, useThisDevice, useCloudVersion, updateActiveCycle,
-    addExercise, updateExercise, deleteExercise, addPlanItem, applyCycle, scheduledSplitForDate, suggestion, startWorkout, skipScheduledWorkout, resumeSkippedWorkout, saveDraft, editWorkout, deleteWorkout,
+  return { state, hydrated, userId, userEmail, syncStatus, syncError, activeCycle, hydrateLocal, setSession, pullCloudOrSeed, pushCloud, useThisDevice, updateActiveCycle,
+    addExercise, updateExercise, deleteExercise, addPlanItem, applyCycle, scheduledSplitForDate, suggestion, startWorkout, skipWorkoutDraft, skipScheduledWorkout, resumeSkippedWorkout, saveDraft, editWorkout, deleteWorkout,
     muscleTotalsForWeek, saveReview, importState, exportState, signIn, signInWithPassword, setPassword, signOut }
 })

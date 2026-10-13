@@ -17,3 +17,20 @@ export function activateWorkoutDraft(state: LiftCycleState, workout: Workout) {
   state.draft = workout
   return workout
 }
+
+// Keep performed sets; an entirely unperformed session is recorded as skipped.
+export function resolveSkippedDraft(state: LiftCycleState, id: string) {
+  const draft = workoutDrafts(state).find(w=>w.id === id)
+  if (!draft) return
+  const saved: Workout = JSON.parse(JSON.stringify(draft))
+  const hasWork = saved.exercises.some(e=>e.sets.some(s=>s.done && !s.warmup && !s.skipped))
+  saved.status = hasWork ? 'completed' : 'skipped'
+  for (const e of saved.exercises) for (const s of e.sets) {
+    if (!s.done && !s.warmup) { s.skipped = true; s.rir = null }
+  }
+  const index = state.history.findIndex(w=>w.id === id)
+  if (index < 0) state.history.push(saved)
+  else state.history[index] = saved
+  if (state.draft?.id === id) state.draft = null
+  state.pausedDrafts = (state.pausedDrafts ?? []).filter(w=>w.id !== id)
+}

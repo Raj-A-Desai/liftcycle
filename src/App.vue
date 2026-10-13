@@ -312,10 +312,6 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
     </section>
     <div v-if="accountMessage" class="success-banner">{{ accountMessage }}</div>
 
-    <section v-if="store.syncStatus==='conflict'" class="cloud-card">
-      <div><strong>Sync conflict</strong><p>This device and the cloud both have changes. Export JSON before replacing either version.</p></div>
-      <div class="auth-row"><button class="ghost" @click="store.exportState()">Export backup</button><button class="ghost" @click="store.useCloudVersion()">Keep cloud version</button><button class="primary" @click="store.useThisDevice()">Keep this device</button></div>
-    </section>
     <div v-if="store.syncError || toastError" class="error-note">{{ store.syncError || toastError }}</div>
     <nav class="homebase-nav" aria-label="Homebase features">
       <button :class="{active:section==='today'}" :aria-current="section==='today'?'page':undefined" @click="section='today'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8v10h-6v-7H9v7H3z"/></svg>Today<span>What matters now</span></button>
@@ -524,7 +520,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
         </select>
         <textarea aria-label="Workout notes" v-model="store.state.draft.notes" placeholder="Workout notes" rows="2"></textarea></details>
         </div></div>
-        <div class="drawer-actions"><button class="ghost" @click="discardDraft">Discard changes</button><button class="primary" @click="saveWorkout">Save workout</button></div>
+        <div class="drawer-actions"><button class="ghost" @click="store.skipWorkoutDraft(store.state.draft!.id)">{{ sessionProgress.completed ? 'End workout · skip remaining' : 'Skip workout' }}</button><button class="ghost" @click="discardDraft">Discard changes</button><button class="primary" @click="saveWorkout">Save workout</button></div>
       </div>
     </dialog>
 

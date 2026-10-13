@@ -35,3 +35,22 @@ test('Today keeps current plans ahead of older drafts; paused sessions remain av
  assert.equal(primaryAttention(s,'2026-10-13',17).workoutId,'new')
  assert.equal(dayEntries(s,'2026-10-11').find(e=>e.kind==='workout').workout.id,old.id)
 })
+
+test('skipping an older draft preserves current session and records a skipped workout',async()=>{
+ const {resolveSkippedDraft}=await import('../src/workoutDrafts.ts')
+ const s=state(),old=s.draft;activateWorkoutDraft(s,workout('new','2026-10-13','Push','push'))
+ resolveSkippedDraft(s,old.id)
+ assert.equal(s.draft.id,'new');assert.equal(s.pausedDrafts.length,0)
+ assert.equal(s.history[0].status,'skipped');assert.equal(s.history[0].date,'2026-10-11')
+})
+
+test('ending a partially performed draft preserves logged work and skips only remaining work',async()=>{
+ const {resolveSkippedDraft}=await import('../src/workoutDrafts.ts')
+ const s=state();s.draft.exercises=[{sets:[{id:'done',done:true,warmup:false,reps:8,rir:2},{id:'remaining',done:false,warmup:false,rir:3},{id:'warmup',done:false,warmup:true}]}]
+ resolveSkippedDraft(s,s.draft.id)
+ assert.equal(s.draft,null);assert.equal(s.history[0].status,'completed')
+ assert.equal(s.history[0].exercises[0].sets[0].reps,8)
+ assert.equal(s.history[0].exercises[0].sets[1].skipped,true)
+ assert.equal(s.history[0].exercises[0].sets[1].rir,null)
+ assert.equal(s.history[0].exercises[0].sets[2].skipped,undefined)
+})

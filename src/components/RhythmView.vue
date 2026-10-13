@@ -18,7 +18,7 @@ const week = computed(()=>weekFor(selected.value))
 const weekKey = computed(()=>week.value[0]!)
 const currentWeek = computed(()=>weekFor(today.value)[0]!)
 watch([currentWeek, weekKey, () => rhythm.value.weeklyWins, () => store.syncStatus], () => {
-  if (weekKey.value !== currentWeek.value || store.syncStatus === 'conflict') return
+  if (weekKey.value !== currentWeek.value) return
   const next = carryGoalsForward(rhythm.value.weeklyWins, currentWeek.value)
   if (JSON.stringify(next) !== JSON.stringify(rhythm.value.weeklyWins[currentWeek.value] || [])) rhythm.value.weeklyWins[currentWeek.value] = next
 }, { deep: true, immediate: true })
@@ -115,7 +115,6 @@ function startTransfer(){
 }
 async function acceptTransfer(payload:any){
   if(!store.userId)throw new Error('Sign in to Homebase before importing Rhythm.')
-  if(store.syncStatus==='conflict')throw new Error('Resolve the sync conflict above before importing.')
   const snapshot=JSON.parse(JSON.stringify(rhythm.value))
   const merged=mergeRhythm(snapshot,payload)
   localStorage.setItem('homebase-rhythm-before-import',JSON.stringify(snapshot))
