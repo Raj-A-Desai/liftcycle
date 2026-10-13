@@ -1,12 +1,28 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { activateWorkoutDraft, findWorkoutDraft } from '../src/workoutDrafts.ts'
+import { activateWorkoutDraft, completeWorkout, findWorkoutDraft } from '../src/workoutDrafts.ts'
 import { dayEntries } from '../src/planning.ts'
 import { primaryAttention } from '../src/attention.ts'
 import { emptyRhythm } from '../src/rhythm.ts'
 
 const workout=(id,date,name,splitId)=>({id,date,name,splitId,notes:'Keep this note',unit:'lb',exercises:[]})
 const state=()=>({schemaVersion:3,unit:'lb',library:[],plan:{},cycles:[{id:'cycle',name:'PPL',startDate:'2026-09-20',weeks:6,days:['pull','','push','','legs','',''],splits:[{id:'pull',name:'Pull',items:[]},{id:'push',name:'Push',items:[]}]}],activeCycleId:'cycle',history:[],draft:workout('old','2026-10-11','Pull'),rhythm:emptyRhythm()})
+
+test('completion preserves performed sets and skips unchecked warmups and prefilled work',()=>{
+ const w=workout('current','2026-10-13','Push','push')
+ w.exercises=[{sets:[
+  {id:'warm',warmup:true,done:true,skipped:false,weight:25,reps:8,rir:null},
+  {id:'work',warmup:false,done:true,skipped:false,weight:50,reps:8,rir:3},
+  {id:'remaining',warmup:false,done:false,skipped:false,weight:50,reps:8,rir:2},
+  {id:'empty',warmup:true,done:false,skipped:false,weight:0,reps:0,rir:null}
+ ]}]
+ const performed=structuredClone(w.exercises[0].sets.slice(0,2))
+ completeWorkout(w)
+ assert.equal(w.status,'completed')
+ assert.deepEqual(w.exercises[0].sets.slice(0,2),performed)
+ assert.ok(w.exercises[0].sets.slice(2).every(s=>s.skipped&&!s.done&&s.rir===null))
+ assert.equal(w.exercises[0].sets[2].weight,50)
+})
 
 test('October 13 Push does not reuse missed October 11 Pull; switching preserves both drafts',()=>{
  const s=state(),old=s.draft,push={id:'push',name:'Push'}

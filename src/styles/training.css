@@ -50,6 +50,7 @@
 .skip-notice .text-btn { margin-left: 8px; }
 .mobile-exercise-controls { display: none; }
 .drawer-actions { position: sticky; bottom: -20px; padding: 18px 0; z-index: 3; }
+.completion-hint { grid-column: 1 / -1; flex-basis: 100%; margin: 0 0 4px; font-size: 11px; line-height: 1.5; color: var(--text-muted); }
 @media (max-width:1199px) {
   .workout-workspace { grid-template-columns: 180px minmax(0,1fr); gap: 20px; }
 }

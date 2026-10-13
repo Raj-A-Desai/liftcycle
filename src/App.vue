@@ -272,8 +272,7 @@ async function chooseExercise(index:number) {
 }
 function skipExercise(index:number) {const ex=store.state.draft?.exercises[index];if(!ex)return;const undo=skipRemainingSets(ex);if(undo)skipUndos[ex.id]=undo}
 function undoExercise(index:number) {const ex=store.state.draft?.exercises[index];if(ex&&skipUndos[ex.id]){undoSkipRemaining(ex,skipUndos[ex.id]!);delete skipUndos[ex.id];reasonOpen[ex.id]=false}}
-function saveWorkout() {if(store.state.draft?.exercises.some(e=>e.sets.some(s=>!s.done&&!s.skipped&&!s.warmup))&&!confirm('Save with unfinished working sets? They will remain recorded as unfinished.'))return;store.saveDraft()}
-function discardDraft() {if(confirm('Discard this workout draft? Any previously saved session stays in history.'))store.state.draft=null}
+function saveWorkout() {store.saveDraft()}
 onMounted(async () => { store.hydrateLocal(); await store.setSession() })
 </script>
 
@@ -542,7 +541,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
         </select>
         <textarea aria-label="Workout notes" v-model="store.state.draft.notes" placeholder="Workout notes" rows="2"></textarea></details>
         </div></div>
-        <div class="drawer-actions"><button class="ghost" @click="store.skipWorkoutDraft(store.state.draft!.id)">{{ sessionProgress.completed ? 'End workout · skip remaining' : 'Skip workout' }}</button><button class="ghost" @click="discardDraft">Discard changes</button><button class="primary" @click="saveWorkout">Save workout</button></div>
+        <div class="drawer-actions"><p class="completion-hint">Progress saves automatically. Completing skips any sets not marked done.</p><button class="ghost" @click="store.skipWorkoutDraft(store.state.draft!.id)">Skip workout</button><button class="primary" @click="saveWorkout">Complete workout</button></div>
       </div>
     </dialog>
 

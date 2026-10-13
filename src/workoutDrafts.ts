@@ -1,5 +1,13 @@
 import type { LiftCycleState, Split, Workout } from './types.ts'
 
+export function completeWorkout(workout: Workout) {
+  workout.status = 'completed'
+  for (const exercise of workout.exercises) for (const set of exercise.sets) {
+    if (set.done) set.skipped = false
+    else { set.skipped = true; set.rir = null }
+  }
+}
+
 export function workoutDrafts(state: LiftCycleState): Workout[] {
   return [...(state.draft ? [state.draft] : []), ...(state.pausedDrafts ?? [])]
 }

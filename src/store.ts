@@ -1,7 +1,7 @@
 import { newId } from './id'
 import { mergeCloudState } from './cloudMerge'
 import { sessionSets } from './sessionTemplate'
-import { activateWorkoutDraft, findWorkoutDraft, resolveSkippedDraft } from './workoutDrafts'
+import { activateWorkoutDraft, completeWorkout, findWorkoutDraft, resolveSkippedDraft } from './workoutDrafts'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import type { LiftCycleState, Exercise, Workout, Cycle, PlanItem, LoggedExercise } from './types'
@@ -442,7 +442,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
 
   function saveDraft() {
     if (!state.value.draft) return
-    state.value.draft.status = 'completed'
+    completeWorkout(state.value.draft)
     const i = state.value.history.findIndex(w => w.id === state.value.draft!.id)
     if (i >= 0) state.value.history[i] = deepCopy(state.value.draft)
     else state.value.history.push(deepCopy(state.value.draft))
