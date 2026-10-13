@@ -255,6 +255,14 @@ async function signOut() { try { await store.signOut() } catch (e:any) { toastEr
 const activeCycleLabel = computed(() => store.activeCycle ? `${store.activeCycle.name} · ${store.activeCycle.weeks} weeks` : 'No active cycle')
 
 const workoutDialog = ref<HTMLDialogElement|null>(null)
+const workoutHeader = ref<HTMLElement|null>(null)
+const workoutHeaderHeight = ref(120)
+watch(workoutHeader, (element, _, onCleanup) => {
+  if (!element) return
+  const observer = new ResizeObserver(() => { workoutHeaderHeight.value = element.getBoundingClientRect().height })
+  observer.observe(element)
+  onCleanup(() => observer.disconnect())
+})
 const currentExercise = ref(0)
 const reasonOpen=reactive<Record<string,boolean>>({})
 const skipReasons=['time','fatigue','discomfort','equipment unavailable','substituted exercise','other']
@@ -498,8 +506,8 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
     </div>
     <datalist id="workout-equipment"><option v-for="eq in equipmentOptions" :key="eq" :value="eq" /></datalist>
     <dialog v-if="store.state.draft && loggerOpen" ref="workoutDialog" class="workout-drawer" aria-label="Log workout" @cancel="loggerOpen=false" @close="loggerOpen=false">
-      <div class="drawer-card">
-        <div class="drawer-head"><div><div class="eyebrow">LOG WORKOUT</div><input class="workout-title" v-model="store.state.draft.name" aria-label="Workout name" /><input v-model="store.state.draft.date" type="date" aria-label="Workout date" /></div><button class="ghost" @click="loggerOpen=false">Close</button></div>
+      <div class="drawer-card" :style="{'--workout-header-height':workoutHeaderHeight+'px'}">
+        <div ref="workoutHeader" class="drawer-head"><div><div class="eyebrow">LOG WORKOUT</div><input class="workout-title" v-model="store.state.draft.name" aria-label="Workout name" /><input v-model="store.state.draft.date" type="date" aria-label="Workout date" /></div><button class="ghost" @click="loggerOpen=false">Close</button></div>
         <div class="workout-progress-bar" role="progressbar" :aria-valuenow="sessionProgress.resolved" :aria-valuemax="sessionProgress.total||1" :aria-valuemin="0" aria-label="Resolved working sets"><i :style="{width:(sessionProgress.total?sessionProgress.resolved/sessionProgress.total*100:0)+'%'}"></i></div>
         <div class="workout-workspace"><aside class="workout-overview"><div class="eyebrow">YOUR SESSION</div><p>{{ sessionProgress.completed }} working sets completed · {{ sessionProgress.resolved-sessionProgress.completed }} skipped</p><nav aria-label="Workout exercises"><button v-for="(ex,i) in store.state.draft.exercises" :key="ex.id" :class="{selected:currentExercise===i}" :aria-pressed="currentExercise===i" @click="chooseExercise(i)"><span>{{ String(i+1).padStart(2,'0') }}</span>{{ ex.name }}<small>{{ ex.sets.filter(s=>s.done&&!s.warmup&&!s.skipped).length }} / {{ ex.sets.filter(s=>!s.warmup).length }}</small></button></nav><p class="muted">Working sets drive progress. Warmups stay separate.</p></aside><div class="workout-main">
         <article v-for="(ex,ei) in store.state.draft.exercises" :key="ex.id" class="log-exercise" :class="{'mobile-active':currentExercise===ei}">
@@ -508,14 +516,14 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
               <h3>{{ ex.name }}</h3>
 
             </div>
-          </div>
-          <ExerciseContext :exercise="ex" :workout="store.state.draft" />
           <details class="exercise-tools"><summary>Exercise options</summary>
               <div class="session-setup"><div class="eyebrow">TODAY’S SETUP</div><div class="session-variation"><label>Equipment<input v-model="ex.equipment" list="workout-equipment" placeholder="Choose equipment" /></label><label>Variation<input v-model="ex.variation" placeholder="Grip, bench angle…" /></label></div><label>Substituted for · optional<input v-model="ex.substitutedFrom" placeholder="Original movement" /></label><label>Exercise notes<textarea v-model="ex.notes" rows="2" placeholder="Setup, tempo, how it felt…" /></label></div>
             <div class="exercise-actions"><button v-if="ex.sets.some(s=>!s.done&&!s.skipped&&!s.warmup)" class="text-btn muted" @click="skipExercise(ei)">Skip remaining sets</button></div>
           </details>
+          </div>
+          <ExerciseContext :exercise="ex" :workout="store.state.draft" />
           <div v-if="skipUndos[ex.id] || ex.endedAt" class="skip-notice" role="status">Remaining working sets skipped<button v-if="skipUndos[ex.id]" class="text-btn" @click="undoExercise(ei)">Undo</button><button class="text-btn" @click="reasonOpen[ex.id]=!reasonOpen[ex.id]">{{ ex.skipReason?'Edit reason':'Add reason' }}</button><small v-if="ex.skipReason"> · {{ ex.skipReason }}</small><label v-if="reasonOpen[ex.id]">Reason · optional<select v-model="ex.skipReason" :aria-label="ex.name+' skip reason'"><option :value="undefined">No reason</option><option v-for="reason in skipReasons" :key="reason" :value="reason">{{ reason }}</option></select></label></div>
-          <div class="exercise-actions set-add-actions"><button class="text-btn" @click="addSet(ei,true)">+ Add warmup</button><button class="text-btn" @click="addSet(ei)">+ Add working set</button><button v-if="!ex.sets.some(s=>s.warmup) && warmupsFor(ei).length" class="text-btn muted" @click="loadWarmups(ei)">Use previous {{ warmupsFor(ei).length }} warmups</button></div>
+          <div class="exercise-actions set-add-actions"><button class="text-btn" @click="addSet(ei,true)">+ Add warmup</button><button v-if="!ex.sets.some(s=>s.warmup) && warmupsFor(ei).length" class="text-btn muted" @click="loadWarmups(ei)">Use previous {{ warmupsFor(ei).length }} warmups</button></div>
           <div class="set-head"><span>#</span><span>Weight</span><span>Reps</span><span>RIR</span><span>Done</span><span>Type / skip</span></div>
           <div v-for="(s,si) in ex.sets" :key="s.id" class="set-row" :class="{done:s.done,skipped:s.skipped,warmup:s.warmup,'current-set':!s.done&&!s.skipped&&!s.warmup&&ex.sets.findIndex(x=>!x.done&&!x.skipped&&!x.warmup)===si}">
             <span class="set-number">{{ si+1 }}</span>
@@ -534,6 +542,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
             </div>
           </div>
 
+          <button class="text-btn add-working-row" @click="addSet(ei)">+ Add working set</button>
         </article>
         <div v-if="store.state.draft.exercises.length" class="mobile-exercise-controls"><button class="ghost" :disabled="currentExercise===0" @click="chooseExercise(currentExercise-1)">← Previous</button><span>{{ currentExercise+1 }} / {{ store.state.draft.exercises.length }}</span><button class="ghost" :disabled="currentExercise>=store.state.draft.exercises.length-1" @click="chooseExercise(currentExercise+1)">Next →</button></div>
         <details class="session-extras"><summary>Session options</summary><select class="full-select" aria-label="Add exercise to workout" @change="addExerciseToDraft(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value=''">

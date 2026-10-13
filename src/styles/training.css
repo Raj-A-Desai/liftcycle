@@ -19,6 +19,13 @@
 .workout-main { min-width: 0; }
 .log-exercise { padding: 8px 0 28px; margin-bottom: 24px; background: transparent; border-radius: 0; border-bottom: 1px solid var(--divider-subtle); }
 .log-ex-head h3 { font-size: 24px; }
+.log-exercise > .log-ex-head { position: sticky; top: calc(var(--workout-header-height,120px) - 20px); z-index: 2; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; background: var(--surface-low); padding: 10px 0; margin-bottom: 12px; border-bottom: 1px solid var(--divider-subtle); }
+.log-ex-head .log-ex-main { flex: 1; }
+.log-ex-head .exercise-tools { margin: 0; }
+.log-ex-head .exercise-tools[open] { flex-basis: 100%; max-height: 45dvh; overflow-y: auto; }
+.log-ex-head .exercise-tools > summary { padding: 10px 0; }
+.add-working-row { display: block; width: 100%; min-height: 48px; text-align: left; padding: 12px; margin-top: 8px; border-radius: var(--radius-control); }
+.add-working-row:hover { background: var(--surface-hover); }
 .session-setup { margin: 10px 0 16px; color: var(--text-muted); font-size: 12px; }
 .session-setup summary, .exercise-history-details summary { cursor: pointer; min-height: 32px; padding: 8px 0; }
 .session-setup label { display: grid; gap: 6px; margin: 10px 0; }
@@ -70,6 +77,7 @@
   .drawer-card { width: 100%; padding: 14px; max-height: 100dvh; height: 100dvh; border-radius: 0; }
   .workout-drawer { padding: 0; }
   .drawer-head { top: -14px; }
+  .log-exercise > .log-ex-head { top: calc(var(--workout-header-height,120px) - 14px); }
   .drawer-head > div { min-width: 0; }
   .workout-title { font-size: 24px; max-width: 100%; }
   .context-summary { gap: 16px; grid-template-columns: 1fr; }
