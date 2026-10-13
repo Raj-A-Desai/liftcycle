@@ -8,6 +8,7 @@ import GuideView from './components/GuideView.vue'
 import TrainingHome from './components/TrainingHome.vue'
 import ExerciseContext from './components/ExerciseContext.vue'
 import SetReference from './components/SetReference.vue'
+import { freshSet, previousWarmups } from './sessionTemplate'
 import { skipRemainingSets, undoSkipRemaining, workoutProgress } from './workoutIntelligence'
 import type { SkipUndo } from './workoutIntelligence'
 import HomebaseBrand from './components/HomebaseBrand.vue'
@@ -140,10 +141,24 @@ function startSelectedSplit(event: Event) {
   select.value=''
 }
 
-function addSet(exIndex: number) {
+function addSet(exIndex: number, warmup = false) {
   const ex = store.state.draft?.exercises[exIndex]; if (!ex) return
-  const last = ex.sets.at(-1)
-  ex.sets.push({ id: newId(), weight: last?.weight ?? 0, reps: last?.reps ?? 8, rir: null, warmup: false, done: false, skipped: false })
+  const last = ex.sets.filter(s => s.warmup === warmup).at(-1)
+  const set = freshSet(last?.weight ?? 0, last?.reps ?? 8, warmup)
+  const firstWork = ex.sets.findIndex(s => !s.warmup)
+  if (warmup && firstWork >= 0) ex.sets.splice(firstWork, 0, set)
+  else ex.sets.push(set)
+}
+
+function warmupsFor(exIndex: number) {
+  const draft = store.state.draft, ex = draft?.exercises[exIndex]
+  return draft && ex ? previousWarmups(store.state.history, ex, draft.unit, draft.date, draft.id) : []
+}
+
+function loadWarmups(exIndex: number) {
+  const ex = store.state.draft?.exercises[exIndex]
+  if (!ex || ex.sets.some(s => s.warmup)) return
+  ex.sets.unshift(...warmupsFor(exIndex).map(s => freshSet(s.weight, s.reps, true)))
 }
 
 function onSetSkipped(set: LoggedSet) {
@@ -499,10 +514,11 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
           <ExerciseContext :exercise="ex" :workout="store.state.draft" />
           <details class="exercise-tools"><summary>Exercise options</summary>
               <div class="session-setup"><div class="eyebrow">TODAY’S SETUP</div><div class="session-variation"><label>Equipment<input v-model="ex.equipment" list="workout-equipment" placeholder="Choose equipment" /></label><label>Variation<input v-model="ex.variation" placeholder="Grip, bench angle…" /></label></div><label>Substituted for · optional<input v-model="ex.substitutedFrom" placeholder="Original movement" /></label><label>Exercise notes<textarea v-model="ex.notes" rows="2" placeholder="Setup, tempo, how it felt…" /></label></div>
-            <div class="exercise-actions"><button class="text-btn" @click="addSet(ei)">+ Add set</button><button v-if="ex.sets.some(s=>!s.done&&!s.skipped&&!s.warmup)" class="text-btn muted" @click="skipExercise(ei)">Skip remaining sets</button></div>
+            <div class="exercise-actions"><button v-if="ex.sets.some(s=>!s.done&&!s.skipped&&!s.warmup)" class="text-btn muted" @click="skipExercise(ei)">Skip remaining sets</button></div>
           </details>
           <div v-if="skipUndos[ex.id] || ex.endedAt" class="skip-notice" role="status">Remaining working sets skipped<button v-if="skipUndos[ex.id]" class="text-btn" @click="undoExercise(ei)">Undo</button><button class="text-btn" @click="reasonOpen[ex.id]=!reasonOpen[ex.id]">{{ ex.skipReason?'Edit reason':'Add reason' }}</button><small v-if="ex.skipReason"> · {{ ex.skipReason }}</small><label v-if="reasonOpen[ex.id]">Reason · optional<select v-model="ex.skipReason" :aria-label="ex.name+' skip reason'"><option :value="undefined">No reason</option><option v-for="reason in skipReasons" :key="reason" :value="reason">{{ reason }}</option></select></label></div>
           <button v-if="ex.sets.some(s=>s.done||s.skipped)" class="text-btn resolved-sets-toggle" :aria-expanded="!!allSets[ex.id]" @click="allSets[ex.id]=!allSets[ex.id]">{{ allSets[ex.id]?'Focus on remaining sets':'Review completed / skipped sets' }} ({{ ex.sets.filter(s=>s.done||s.skipped).length }})</button>
+          <div class="exercise-actions set-add-actions"><button class="text-btn" @click="addSet(ei,true)">+ Add warmup</button><button class="text-btn" @click="addSet(ei)">+ Add working set</button><button v-if="!ex.sets.some(s=>s.warmup) && warmupsFor(ei).length" class="text-btn muted" @click="loadWarmups(ei)">Use previous {{ warmupsFor(ei).length }} warmups</button></div>
           <div class="set-head"><span>#</span><span>Weight</span><span>Reps</span><span>RIR</span><span>Done</span></div>
           <div v-for="(s,si) in ex.sets" :key="s.id" class="set-row" :class="{done:s.done,skipped:s.skipped,warmup:s.warmup,'show-resolved':allSets[ex.id],'current-set':!s.done&&!s.skipped&&!s.warmup&&ex.sets.findIndex(x=>!x.done&&!x.skipped&&!x.warmup)===si}">
             <span>{{ si+1 }}</span>

@@ -1,5 +1,6 @@
 import { newId } from './id'
 import { mergeCloudState } from './cloudMerge'
+import { sessionSets } from './sessionTemplate'
 import { activateWorkoutDraft, findWorkoutDraft, resolveSkippedDraft } from './workoutDrafts'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
@@ -403,8 +404,9 @@ export const useLiftStore = defineStore('liftcycle', () => {
         const logged: LoggedExercise = {
           id: uuid(), exerciseId: ex.id, name: ex.name, equipment, variation: ex.variation,
           loadMode: ex.loadMode, loadBasis: ex.loadBasis, unilateral: ex.unilateral, credits: deepCopy(ex.credits),
-          sets: Array.from({ length: item.sets || 2 }, () => ({ id: uuid(), weight: sug?.load ?? item.load ?? 0, reps: sug?.reps ?? item.reps ?? ex.repMin, rir: null, warmup: false, done: false, skipped: false }))
+          sets: []
         }
+        logged.sets = sessionSets(state.value.history, logged, state.value.unit, date, item.sets || 2, sug?.load ?? item.load ?? 0, sug?.reps ?? item.reps ?? ex.repMin)
         return logged
       })
     }
