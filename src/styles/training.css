@@ -19,10 +19,12 @@
 .workout-main { min-width: 0; }
 .log-exercise { padding: 8px 0 28px; margin-bottom: 24px; background: transparent; border-radius: 0; border-bottom: 1px solid var(--divider-subtle); }
 .log-ex-head h3 { font-size: 24px; }
-.log-exercise > .log-ex-head { position: sticky; top: calc(var(--workout-header-height,120px) - 20px); z-index: 2; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; background: var(--surface-low); padding: 10px 0; margin-bottom: 12px; border-bottom: 1px solid var(--divider-subtle); }
+.log-exercise > .log-ex-head { position: sticky; top: calc(var(--workout-header-height,120px) - 20px); z-index: 2; display: flex; flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 4px 12px; background: var(--surface-low); padding: 10px 0; margin-bottom: 12px; border-bottom: 1px solid var(--divider-subtle); }
 .log-ex-head .log-ex-main { flex: 1; }
-.log-ex-head .exercise-tools { margin: 0; }
-.log-ex-head .exercise-tools[open] { flex-basis: 100%; max-height: 45dvh; overflow-y: auto; }
+.log-ex-head .exercise-tools { margin: 0; min-width: 0; max-width: 100%; }
+.log-ex-head .exercise-tools[open] { flex: 0 0 100%; width: 100%; max-height: 45dvh; overflow-y: auto; }
+.exercise-tools .session-setup, .exercise-tools .session-setup label { min-width: 0; width: 100%; }
+.exercise-tools input, .exercise-tools textarea { min-width: 0; width: 100%; max-width: 100%; box-sizing: border-box; }
 .log-ex-head .exercise-tools > summary { padding: 10px 0; }
 .add-working-row { display: block; width: 100%; min-height: 48px; text-align: left; padding: 12px; margin-top: 8px; border-radius: var(--radius-control); }
 .add-working-row:hover { background: var(--surface-hover); }
