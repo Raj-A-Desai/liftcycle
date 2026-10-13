@@ -18,7 +18,7 @@ export function plannedSplit(state: LiftCycleState, date: string): Split | null 
   return cycle?.splits.find(s=>s.id === id) ?? null
 }
 export function dayEntries(state: LiftCycleState, date: string) {
-  return entriesFor(state.rhythm!, date, workoutEntries(date, plannedSplit(state,date), state.history, state.draft))
+  return entriesFor(state.rhythm!, date, workoutEntries(date, plannedSplit(state,date), state.history, state.draft?.date === date ? state.draft : (state.pausedDrafts?.find(w=>w.date === date) ?? null)))
 }
 export function weekSignals(state: LiftCycleState, anchor = dateKey()) {
   const days = weekFor(anchor), start = days[0]!, end = days[6]!

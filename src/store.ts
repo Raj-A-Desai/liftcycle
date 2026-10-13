@@ -1,4 +1,5 @@
 import { newId } from './id'
+import { activateWorkoutDraft, findWorkoutDraft } from './workoutDrafts'
 import { defineStore } from 'pinia'
 import { computed, ref, watch } from 'vue'
 import type { LiftCycleState, Exercise, Workout, Cycle, PlanItem, LoggedExercise } from './types'
@@ -31,6 +32,7 @@ const EMPTY: LiftCycleState = {
   activeCycleId: null,
   history: [],
   draft: null,
+  pausedDrafts: [],
   settings: { weeklyWorkoutGoal: 3, defaultMuscleTarget: 3, muscleTargets: {} },
 }
 
@@ -65,6 +67,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
     merged.library = Array.isArray(raw?.library) ? raw.library : []
     merged.cycles = Array.isArray(raw?.cycles) ? raw.cycles : []
     merged.history = Array.isArray(raw?.history) ? raw.history : []
+    merged.pausedDrafts = Array.isArray(raw?.pausedDrafts) ? raw.pausedDrafts : []
     merged.plan = raw?.plan ? raw.plan : deepCopy(EMPTY.plan)
     merged.plan.splits ??= deepCopy(EMPTY.plan.splits)
     merged.plan.days ??= ['', 'push', '', 'pull', '', 'legs', '']
@@ -76,7 +79,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
         for (const item of split.items ?? []) delete item.rir
       }
     }
-    for (const workout of [...merged.history, ...(merged.draft ? [merged.draft] : [])]) {
+    for (const workout of [...merged.history, ...merged.pausedDrafts, ...(merged.draft ? [merged.draft] : [])]) {
       workout.status = workout.status === 'skipped' ? 'skipped' : 'completed'
       workout.exercises ??= []
       for (const exercise of workout.exercises) {
@@ -364,13 +367,14 @@ export const useLiftStore = defineStore('liftcycle', () => {
   function saveReview(raw: unknown) { return saveWeeklyReview(state.value,raw) }
 
   function startWorkout(date: string, splitId?: string) {
-    if (state.value.draft) return state.value.draft
     const split = splitId
       ? (cycleForDate(date)?.splits.find(s => s.id === splitId) ?? state.value.plan.splits.find(s => s.id === splitId))
       : scheduledSplitForDate(date)
+    const existing = findWorkoutDraft(state.value, date, split)
+    if (existing) return activateWorkoutDraft(state.value, existing)
     const sessionCycle = cycleForDate(date)
     const workout: Workout = {
-      id: uuid(), date, name: split?.name ?? 'Workout', notes: '', unit: state.value.unit, status: 'completed',
+      id: uuid(), date, splitId: split?.id, name: split?.name ?? 'Workout', notes: '', unit: state.value.unit, status: 'completed',
       cycleId: sessionCycle?.id, cycleName: sessionCycle?.name,
       scheduledId: sessionCycle ? `${sessionCycle.id}:${date}` : undefined,
       exercises: (split?.items ?? []).map(item => {
@@ -385,8 +389,7 @@ export const useLiftStore = defineStore('liftcycle', () => {
         return logged
       })
     }
-    state.value.draft = workout
-    return workout
+    return activateWorkoutDraft(state.value, workout)
   }
 
   function skipScheduledWorkout(date: string) {
@@ -403,7 +406,6 @@ export const useLiftStore = defineStore('liftcycle', () => {
   }
 
   function resumeSkippedWorkout(id: string) {
-    if (state.value.draft) return state.value.draft
     const skipped = state.value.history.find(w => w.id === id && w.status === 'skipped')
     if (!skipped) return null
     const date = skipped.date
@@ -421,9 +423,8 @@ export const useLiftStore = defineStore('liftcycle', () => {
   }
 
   function editWorkout(id: string) {
-    if (state.value.draft) return
-    const w = state.value.history.find(w => w.id === id)
-    if (w) state.value.draft = deepCopy(w)
+    const w = [state.value.draft, ...(state.value.pausedDrafts ?? []), ...state.value.history].find(w => w?.id === id)
+    if (w) activateWorkoutDraft(state.value, deepCopy(w))
   }
 
   function deleteWorkout(id: string) { state.value.history = state.value.history.filter(w => w.id !== id) }

@@ -55,8 +55,7 @@ onMounted(()=>window.addEventListener('hashchange',readRoute))
 onBeforeUnmount(()=>window.removeEventListener('hashchange',readRoute))
 function openFromRhythm(date: string, id?: string) {
   selectedDate.value=date; weekAnchor.value=new Date(date+'T12:00:00')
-  if(store.state.draft) { loggerOpen.value=true; return }
-  const workout=store.state.history.find(w=>w.id===id)
+  const workout=[store.state.draft, ...(store.state.pausedDrafts ?? []), ...store.state.history].find(w=>w?.id===id)
   if(workout?.status==='skipped')store.resumeSkippedWorkout(workout.id)
   else if(workout)store.editWorkout(workout.id)
   else startFor(date)
@@ -248,7 +247,7 @@ const skipUndos = reactive<Record<string,SkipUndo>>({})
 watch(()=>store.state.draft?.exercises.length,length=>{currentExercise.value=Math.min(currentExercise.value,Math.max(0,(length || 1)-1))})
 const sessionProgress = computed(()=>store.state.draft ? workoutProgress(store.state.draft) : {total:0,completed:0,resolved:0})
 watch(()=>store.state.draft?.id,()=>{currentExercise.value=Math.max(0,store.state.draft?.exercises.findIndex(e=>e.sets.some(s=>!s.done&&!s.skipped&&!s.warmup)) ?? 0);for(const id of Object.keys(skipUndos))delete skipUndos[id]})
-watch([loggerOpen,()=>store.state.draft?.id],async()=>{await nextTick();if(loggerOpen.value&&store.state.draft&&!workoutDialog.value?.open)workoutDialog.value?.showModal();else workoutDialog.value?.close()})
+watch([loggerOpen,()=>store.state.draft?.id],async()=>{await nextTick();if(loggerOpen.value&&store.state.draft){if(!workoutDialog.value?.open)workoutDialog.value?.showModal()}else workoutDialog.value?.close()})
 async function chooseExercise(index:number) {
   currentExercise.value=index
   await nextTick()

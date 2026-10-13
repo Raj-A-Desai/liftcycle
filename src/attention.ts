@@ -5,7 +5,8 @@ import { dayEntries, weekSignals } from './planning.ts'
 
 // An imminent commitment starts within one hour. All-day events remain context.
 export function primaryAttention(state: LiftCycleState, date: string, hour: number) {
-  if (state.draft) return { kind:'draft' as const, label:'Pick up where you left off', title:state.draft.name, detail:'Your workout is saved as you go.', date:state.draft.date, workoutId:state.draft.id }
+  const draft = state.draft?.date === date ? state.draft : state.pausedDrafts?.find(w=>w.date === date)
+  if (draft) return { kind:'draft' as const, label:'Pick up where you left off', title:draft.name, detail:'Your workout is saved as you go.', date:draft.date, workoutId:draft.id }
   const entries=dayEntries(state,date).filter(e=>!isDone(state.rhythm!,date,e) && e.status!=='skipped')
   const fixed=entries.filter(e=>e.intent==='fixed' && !e.allDay && !e.untimed)
   const current=fixed.find(e=>e.at<=hour && e.endAt>hour)

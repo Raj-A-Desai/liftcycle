@@ -13,7 +13,8 @@ test('Today prioritizes draft, current fixed, imminent fixed, workout, intention
  const s=state(),date='2026-10-08';s.rhythm.meetings=[{id:'fixed',title:'Review',date,start:660,end:720}]
  s.rhythm.intentions=[{id:'i',title:'Focus block',date,duration:30,detail:'',done:false,moves:[]}]
  s.rhythm.weeklyWins['2026-10-04']=[{id:'g',text:'Ship',done:false}]
- s.draft=workout('2026-10-07');assert.equal(primaryAttention(s,date,11).kind,'draft')
+ s.draft=workout(date);assert.equal(primaryAttention(s,date,11).kind,'draft')
+ s.draft=workout('2026-10-07');assert.equal(primaryAttention(s,date,11).title,'Review')
  s.draft=null;assert.equal(primaryAttention(s,date,11).title,'Review');assert.equal(primaryAttention(s,date,10.5).label,'Up next')
  assert.equal(primaryAttention(s,date,7.5).entry.kind,'workout')
  s.history=[{...workout(date),status:'skipped'}];assert.equal(primaryAttention(s,date,12).title,'Focus block')

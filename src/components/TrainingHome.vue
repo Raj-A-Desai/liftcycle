@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import { workoutDrafts } from '../workoutDrafts'
 import { useLiftStore } from '../store'
 import { dateKey, formatDate, shiftDay } from '../rhythm'
 import { cycleOn, weekSignals } from '../planning'
@@ -7,9 +8,12 @@ import { actualExerciseSummary } from '../workoutSummary'
 import { exerciseTrend } from '../workoutIntelligence'
 const emit=defineEmits<{workout:[date:string,id?:string];manage:[];schedule:[];history:[]}>()
 const store=useLiftStore(),today=dateKey()
+const drafts=computed(()=>workoutDrafts(store.state))
+const olderDrafts=computed(()=>drafts.value.filter(w=>w.date<today))
 const next=computed(()=>{
-  if(store.state.draft)return {date:store.state.draft.date,name:store.state.draft.name,id:store.state.draft.id,resume:true}
-  for(let n=0;n<28;n++){const date=shiftDay(today,n),split=store.scheduledSplitForDate(date);if(split&&!store.state.history.some(w=>w.date===date))return {date,name:split.name,id:undefined,resume:false}}
+  const draft=drafts.value.find(w=>w.date===today)
+  if(draft)return {date:draft.date,name:draft.name,id:draft.id,resume:true}
+  for(let n=0;n<28;n++){const date=shiftDay(today,n),split=store.scheduledSplitForDate(date);if(split&&!store.state.history.some(w=>w.date===date)){const draft=drafts.value.find(w=>w.date===date);return {date,name:draft?.name ?? split.name,id:draft?.id,resume:Boolean(draft)}}}
   return null
 })
 const week=computed(()=>weekSignals(store.state,today))
@@ -31,6 +35,7 @@ function workSets(w:NonNullable<typeof recent.value>){return w.exercises.flatMap
     <section v-if="recent && recent.id!==lastSame?.id" class="quiet-section"><div class="eyebrow">RECENT SESSION</div><h2>{{ recent.name }}</h2><p>{{ formatDate(recent.date,{month:'short',day:'numeric'}) }} · {{ workSets(recent) }} working sets</p><button class="text-btn" @click="emit('workout',recent.date,recent.id)">View session →</button></section>
   </div><aside class="train-context">
     <section class="quiet-section"><div class="eyebrow">THIS WEEK</div><h2>{{ week.workouts }} / {{ week.plannedWorkouts || store.state.settings?.weeklyWorkoutGoal || 3 }} sessions</h2><p>Completed workouts with recorded working sets.</p><button class="text-btn" @click="emit('schedule')">View training week →</button></section>
+    <section v-if="olderDrafts.length" class="quiet-section"><div class="eyebrow">UNFINISHED SESSIONS</div><div v-for="draft in olderDrafts" :key="draft.id" class="training-history-row"><div><strong>{{ draft.name }}</strong><p>{{ formatDate(draft.date,{month:'short',day:'numeric'}) }}</p></div><button class="text-btn" @click="emit('workout',draft.date,draft.id)">Resume</button></div></section>
     <section v-if="upcoming.length" class="quiet-section"><div class="eyebrow">COMING UP</div><div v-for="date in upcoming" :key="date" class="training-history-row"><strong>{{ store.scheduledSplitForDate(date)?.name }}</strong><span>{{ formatDate(date,{weekday:'short',month:'short',day:'numeric'}) }}</span></div></section>
     <section v-if="trends.length" class="quiet-section"><div class="eyebrow">RECENT PROGRESSION</div><div v-for="t in trends" :key="t.name" class="training-trend"><strong>{{ t.name }}</strong><p>{{ t.trend }}</p></div><button class="text-btn" @click="emit('history')">Explore history →</button></section>
     <section v-if="cycle" class="quiet-section"><div class="eyebrow">CURRENT PROGRAM</div><h2>{{ cycle.name }}</h2><p>Week {{ cycleWeek }} of {{ cycle.weeks }}</p><button class="text-btn" @click="emit('manage')">Manage program →</button></section>

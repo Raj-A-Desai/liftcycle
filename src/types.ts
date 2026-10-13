@@ -50,6 +50,7 @@ export interface Workout {
   status?: 'completed' | 'skipped'
   cycleId?: string
   cycleName?: string
+  splitId?: string
   scheduledId?: string
   exercises: LoggedExercise[]
 }
@@ -66,6 +67,7 @@ export interface LiftCycleState {
   activeCycleId: string | null
   history: Workout[]
   draft: Workout | null
+  pausedDrafts?: Workout[]
   settings?: { weeklyWorkoutGoal: number; defaultMuscleTarget: number; muscleTargets: Record<string, number> }
 }
 
