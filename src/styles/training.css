@@ -34,6 +34,8 @@
 .past-session p { color: var(--text-muted); line-height: 1.6; }
 .past-set { display: grid; grid-template-columns: 66px minmax(0,1fr) auto; gap: 12px; align-items: baseline; padding: 5px 0; }
 .past-set.warmup { color: var(--text-muted); opacity: .8; }
+.set-head { padding-inline: 12px; }
+.set-row { padding: 10px 12px; margin-block: 4px; }
 .set-row input[type=number] { min-height: 44px; }
 .set-row input[type=checkbox] { width: 26px; height: 26px; cursor: pointer; }
 .set-row.warmup { opacity: .7; }
@@ -124,7 +126,8 @@
 }
 @media (max-width:560px) {
   .set-head, .set-row { grid-template-columns: 18px minmax(0,1.2fr) minmax(0,1fr) minmax(0,1fr) 44px 44px; gap: 6px; }
-  .set-head { font-size: 10px; }
+  .set-head { font-size: 10px; padding-inline: 8px; }
+  .set-row { padding: 10px 8px; }
   .context-summary { gap: 10px; }
   .last-performance > span, .today-guidance > span { font-size: 10px; }
   .log-exercise { margin-bottom: 12px; padding-bottom: 18px; }
