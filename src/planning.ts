@@ -1,6 +1,6 @@
 import type { LiftCycleState, Cycle, Split, TrainingMove } from './types.ts'
 import type { Intention } from './rhythm.ts'
-import { carryGoalsForward, dateKey, entriesFor, isDone, shiftDay, weekFor, workoutEntries } from './rhythm.ts'
+import { carryGoalsForward, dateKey, entriesFor, isDone, orderedWeeklyGoals, shiftDay, weekFor, workoutEntries } from './rhythm.ts'
 import { splitForCalendarDate } from './schedule.ts'
 
 export type MomentumState = 'Building' | 'Steady' | 'Recovering' | 'Resetting'
@@ -22,7 +22,7 @@ export function dayEntries(state: LiftCycleState, date: string) {
 }
 export function weekSignals(state: LiftCycleState, anchor = dateKey()) {
   const days = weekFor(anchor), start = days[0]!, end = days[6]!
-  const goals = carryGoalsForward(state.rhythm!.weeklyWins, start).filter(g=>g.text.trim() && !g.deleted)
+  const goals = orderedWeeklyGoals(carryGoalsForward(state.rhythm!.weeklyWins, start)).filter(g=>g.text.trim())
   const workouts = state.history.filter(w=>w.date >= start && w.date <= end && w.status !== 'skipped' && w.exercises.some(e=>e.sets.some(s=>s.done && !s.warmup && !s.skipped)))
   const planned = days.filter(d=>plannedSplit(state,d) || (!state.trainingMoves?.some(m=>m.fromDate===d) && state.history.some(w=>w.date===d && w.scheduledId))).length
   // An unchecked routine is not evidence it was missed. Only days with explicit

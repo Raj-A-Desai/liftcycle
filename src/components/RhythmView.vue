@@ -5,7 +5,7 @@ import IntentionCapture from './IntentionCapture.vue'
 import { newId } from '../id'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useLiftStore } from '../store'
-import { carryGoalsForward, dateKey, deleteWeeklyGoal, entriesFor, formatDate, formatHour, hourNow, isDone, loadFor, mergeRhythm, shiftDay, weekFor, workoutEntries } from '../rhythm'
+import { carryGoalsForward, dateKey, deleteWeeklyGoal, entriesFor, formatDate, formatHour, hourNow, isDone, loadFor, mergeRhythm, moveWeeklyGoal, orderedWeeklyGoals, shiftDay, weekFor, workoutEntries } from '../rhythm'
 import type { Meeting, TimelineEntry } from '../rhythm'
 const props = defineProps<{ selectedDate: string }>()
 const emit = defineEmits<{ 'update:selectedDate': [value: string]; workout: [date: string, id?: string]; training: [] }>()
@@ -34,8 +34,8 @@ const basics = [{key:'creatine',label:'Creatine',detail:'Daily'},{key:'skincare'
 const basicsCount = computed(()=>basics.filter(b=>daily.value[b.key]).length+Number(daily.value.water || 0))
 const goals = computed(()=>{
   const saved = rhythm.value.weeklyWins[weekKey.value] || []
-  const visible = saved.map((goal,index)=>({...goal,index})).filter(goal=>!goal.deleted)
-  return [...visible,...Array.from({length:Math.max(0,5-visible.length)},(_,i)=>({text:'',done:false,index:saved.length+i,carriedFrom:undefined}))]
+  const visible = orderedWeeklyGoals(saved)
+  return [...visible,...Array.from({length:Math.max(0,5-visible.length)},(_,i)=>({text:'',done:false,index:saved.length+i,id:undefined,carriedFrom:undefined}))]
 })
 const deletedGoal = ref<{week:string;index:number}|null>(null)
 function removeGoal(index:number) {
@@ -52,6 +52,7 @@ function undoDeleteGoal() {
 watch(weekKey,()=>{deletedGoal.value=null})
 const meaningfulGoals = computed(()=>goals.value.filter(g=>g.text.trim()))
 const goalsDone = computed(()=>meaningfulGoals.value.filter(g=>g.done).length)
+function moveGoal(index:number,direction:-1|1) { moveWeeklyGoal(rhythm.value.weeklyWins[weekKey.value] || [],index,direction) }
 function setGoal(index: number, field: 'text'|'done', value: string|boolean) {
   const rows = rhythm.value.weeklyWins[weekKey.value] ||= []
   while(rows.length<=index)rows.push({text:'',done:false})
@@ -165,7 +166,7 @@ onBeforeUnmount(()=>{window.clearInterval(timer);window.clearInterval(transferTi
       </section>
       <aside class="rhythm-sidebar">
         <section class="rhythm-card goals-card"><div class="rhythm-card-head"><div><div class="eyebrow">MAKE THIS WEEK COUNT</div><h2>Weekly goals</h2></div><strong class="count-accent">{{ goalsDone }}<small> / {{ meaningfulGoals.length }}</small></strong></div><div class="rhythm-mini-track goals-track"><i :style="{width:(meaningfulGoals.length?goalsDone/meaningfulGoals.length*100:0)+'%'}"></i></div>
-          <div class="rhythm-goals"><div v-for="(goal,i) in goals" :key="weekKey+'-'+i" class="rhythm-goal" :class="{done:goal.done}"><span class="goal-index">{{ String(i+1).padStart(2,'0') }}</span><div class="goal-copy"><textarea :value="goal.text" :aria-label="'Weekly goal '+(i+1)" placeholder="Add a weekly goal" rows="2" maxlength="4000" @input="setGoal(goal.index,'text',($event.target as HTMLTextAreaElement).value)"></textarea><small v-if="goal.carriedFrom" class="goal-origin">From {{ formatDate(goal.carriedFrom,{month:'short',day:'numeric'}) }}</small></div><button class="rhythm-check" :class="{checked:goal.done}" :disabled="!goal.text.trim()" :aria-label="(goal.done?'Reopen':'Complete')+' weekly goal '+(i+1)" :aria-pressed="goal.done" @click="setGoal(goal.index,'done',!goal.done)">{{ goal.done?'✓':'' }}</button><button v-if="goal.text.trim()" class="goal-delete" :aria-label="'Delete weekly goal '+(i+1)" title="Delete goal" @click="removeGoal(goal.index)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6m4-6v6"/></svg></button></div></div><div v-if="deletedGoal" class="goal-delete-notice" role="status"><span>Goal deleted</span><button class="text-btn" @click="undoDeleteGoal">Undo</button></div>
+<div class="rhythm-goals"><div v-for="(goal,i) in goals" :key="weekKey+'-'+(goal.id || goal.index)" class="rhythm-goal" :class="{done:goal.done}"><div class="goal-priority"><span class="goal-index">{{ String(i+1).padStart(2,'0') }}</span><div v-if="goal.text.trim()" class="goal-order-controls"><button type="button" :disabled="meaningfulGoals[0]?.index===goal.index" :aria-label="'Move weekly goal '+(i+1)+' up'" title="Move up" @click="moveGoal(goal.index,-1)">↑</button><button type="button" :disabled="meaningfulGoals.at(-1)?.index===goal.index" :aria-label="'Move weekly goal '+(i+1)+' down'" title="Move down" @click="moveGoal(goal.index,1)">↓</button></div></div><div class="goal-copy"><textarea :value="goal.text" :aria-label="'Weekly goal '+(i+1)" placeholder="Add a weekly goal" rows="2" maxlength="4000" @input="setGoal(goal.index,'text',($event.target as HTMLTextAreaElement).value)"></textarea><small v-if="goal.carriedFrom" class="goal-origin">From {{ formatDate(goal.carriedFrom,{month:'short',day:'numeric'}) }}</small></div><button class="rhythm-check" :class="{checked:goal.done}" :disabled="!goal.text.trim()" :aria-label="(goal.done?'Reopen':'Complete')+' weekly goal '+(i+1)" :aria-pressed="goal.done" @click="setGoal(goal.index,'done',!goal.done)">{{ goal.done?'✓':'' }}</button><button v-if="goal.text.trim()" class="goal-delete" :aria-label="'Delete weekly goal '+(i+1)" title="Delete goal" @click="removeGoal(goal.index)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M9 7V4h6v3M6 7l1 14h10l1-14M10 11v6m4-6v6"/></svg></button></div></div><div v-if="deletedGoal" class="goal-delete-notice" role="status"><span>Goal deleted</span><button class="text-btn" @click="undoDeleteGoal">Undo</button></div>
         </section>
         <section class="rhythm-card"><div class="rhythm-card-head"><h2>Body check</h2><span class="muted">{{ basicsCount }} / 6</span></div><div class="basics-grid"><button v-for="basic in basics" :key="basic.key" :class="{checked:daily[basic.key]}" :aria-pressed="Boolean(daily[basic.key])" @click="setDaily(basic.key,!daily[basic.key])"><strong>{{ basic.label }} <span v-if="daily[basic.key]">✓</span></strong><small>{{ basic.detail }}</small></button></div><div class="water-row"><span><strong>Water</strong><small>{{ Number(daily.water||0)*30 }} / 90 oz</small></span><div><button v-for="n in 3" :key="n" :class="{checked:Number(daily.water||0)>=n}" :aria-label="n*30+' ounces of water'" :aria-pressed="Number(daily.water||0)>=n" @click="setDaily('water',Number(daily.water||0)===n?n-1:n)">{{ n }}</button></div></div></section>
         <MomentumPanel :anchor="selected" />

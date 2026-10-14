@@ -1,7 +1,20 @@
 import type { Workout } from './types'
 
 export type DayLoad = 'red' | 'yellow' | 'green' | 'off'
-export interface Goal { text: string; done: boolean; id?: string; carriedFrom?: string; deleted?: boolean }
+export interface Goal { text: string; done: boolean; id?: string; carriedFrom?: string; deleted?: boolean; order?: number }
+
+export function orderedWeeklyGoals(goals: Goal[]) {
+  return goals.map((goal,index)=>({...goal,index})).filter(goal=>!goal.deleted)
+    .sort((a,b)=>(a.order ?? a.index)-(b.order ?? b.index) || a.index-b.index)
+}
+
+export function moveWeeklyGoal(goals: Goal[], index: number, direction: -1 | 1) {
+  const visible = orderedWeeklyGoals(goals).filter(goal=>goal.text.trim())
+  const from = visible.findIndex(goal=>goal.index===index), to = from+direction
+  if (from < 0 || to < 0 || to >= visible.length) return
+  ;[visible[from],visible[to]] = [visible[to]!,visible[from]!]
+  visible.forEach((goal,order)=>{ goals[goal.index]!.order=order })
+}
 export interface Meeting { id: string; title: string; date: string; start: number; end: number }
 export interface CalendarEvent { id: string; title: string; detail: string; at: number; endAt: number; kind: string; allDay?: boolean }
 export interface Intention { goalId?: string; id: string; title: string; date: string; at?: number; duration: number; detail: string; done: boolean; moves: {from: string; to: string; at: string}[] }

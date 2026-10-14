@@ -1,6 +1,20 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import {emptyRhythm,mergeRhythm,entriesFor,workoutEntries,dateKey,weekFor,loadFor,isDone} from '../src/rhythm.ts'
+import {emptyRhythm,mergeRhythm,entriesFor,workoutEntries,dateKey,weekFor,loadFor,isDone,moveWeeklyGoal,orderedWeeklyGoals} from '../src/rhythm.ts'
+
+test('goal priority survives reload and preserves identities, deletion slots and completed work',()=>{
+ const goals=[{id:'a',text:'First',done:true},{id:'deleted',text:'Removed',deleted:true,done:false},{id:'b',text:'Second',done:false},{text:'',done:false},{id:'c',text:'Third',done:false}]
+ moveWeeklyGoal(goals,4,-1)
+ assert.deepEqual(orderedWeeklyGoals(goals).filter(g=>g.text).map(g=>g.id),['a','c','b'])
+ moveWeeklyGoal(goals,4,-1)
+ assert.deepEqual(orderedWeeklyGoals(JSON.parse(JSON.stringify(goals))).filter(g=>g.text).map(g=>g.id),['c','a','b'])
+ assert.equal(goals[0].done,true)
+ assert.equal(goals[1].deleted,true)
+ assert.equal(goals[4].id,'c')
+ const before=JSON.stringify(goals)
+ moveWeeklyGoal(goals,4,-1)
+ assert.equal(JSON.stringify(goals),before)
+})
 
 test('Training is the only source of workouts; Monday does not invent Push',()=>{
   const r=emptyRhythm()
