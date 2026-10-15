@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { primaryAttention } from '../src/attention.ts'
-import { exerciseTrend, progression, skipRemainingSets, undoSkipRemaining } from '../src/workoutIntelligence.ts'
+import { exerciseTrend, progression, exerciseSetProgress, skipRemainingSets, undoSkipRemaining } from '../src/workoutIntelligence.ts'
 import { buildWeeklyReviewInput } from '../src/weeklyReview.ts'
 import { emptyRhythm, normalizeRhythm } from '../src/rhythm.ts'
 import { deriveMomentum, planningSuggestions } from '../src/planning.ts'
@@ -55,4 +55,19 @@ test('adaptive moves account for fixed-commitment availability',()=>{
  const s=state();s.rhythm.intentions=[{id:'i',title:'Focus',date:'2026-10-07',duration:30,detail:'',done:false,moves:[]}]
  s.rhythm.meetings=[{id:'busy',title:'All-day work',date:'2026-10-09',start:480,end:1320}]
  const suggestion=planningSuggestions(s,'2026-10-08').find(x=>x.intentionId==='i');assert.equal(suggestion.to,undefined);assert.match(suggestion.detail,/no 30-minute opening/)
+})
+
+test('segmented workout progress fills from completed working sets while keeping skipped and warmups distinct', () => {
+ const ex=exercise({sets:[
+  {id:'warm',weight:15,reps:6,rir:null,warmup:true,done:true,skipped:false},
+  {id:'a',weight:25,reps:12,rir:3,warmup:false,done:true,skipped:false},
+  {id:'b',weight:25,reps:12,rir:null,warmup:false,done:false,skipped:true},
+  {id:'c',weight:25,reps:12,rir:null,warmup:false,done:false,skipped:false},
+ ]})
+ assert.deepEqual(exerciseSetProgress(ex),{total:3,completed:1,skipped:1})
+ ex.sets[3].done=true
+ assert.deepEqual(exerciseSetProgress(ex),{total:3,completed:2,skipped:1})
+ ex.sets.splice(2,1)
+ assert.deepEqual(exerciseSetProgress(ex),{total:2,completed:2,skipped:0})
+ assert.deepEqual(exerciseSetProgress(exercise({sets:[]})),{total:0,completed:0,skipped:0})
 })
