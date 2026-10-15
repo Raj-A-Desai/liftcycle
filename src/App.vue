@@ -45,6 +45,11 @@ watch(ambientEnabled, enabled => {
 const tab = ref<'train'|'schedule'|'cycle'|'exercises'|'history'|'progress'>('train')
 const section = ref<'today'|'rhythm'|'training'|'guide'>('today')
 const loggerOpen = ref(false)
+const viewedWorkoutId = ref<string | null>(null)
+const activeWorkout = computed(() => viewedWorkoutId.value
+  ? store.state.history.find(w => w.id === viewedWorkoutId.value) ?? null
+  : store.state.draft)
+const isViewingCompleted = computed(() => viewedWorkoutId.value !== null)
 function readRoute() {
   const parts = window.location.hash.replace('#/','').split('/')
   section.value = ['rhythm','training','guide'].includes(parts[0] || '') ? parts[0] as typeof section.value : 'today'
@@ -57,9 +62,13 @@ onMounted(()=>window.addEventListener('hashchange',readRoute))
 onBeforeUnmount(()=>window.removeEventListener('hashchange',readRoute))
 function openFromRhythm(date: string, id?: string) {
   selectedDate.value=date; weekAnchor.value=new Date(date+'T12:00:00')
-  const workout=[store.state.draft, ...(store.state.pausedDrafts ?? []), ...store.state.history].find(w=>w?.id===id)
-  if(workout?.status==='skipped')store.resumeSkippedWorkout(workout.id)
-  else if(workout)store.editWorkout(workout.id)
+  currentExercise.value=-1
+  viewedWorkoutId.value=null
+  const pending=[store.state.draft, ...(store.state.pausedDrafts ?? [])].find(w=>w?.id===id)
+  const history=store.state.history.find(w=>w.id===id)
+  if(pending)store.editWorkout(pending.id)
+  else if(history?.status==='skipped')store.resumeSkippedWorkout(history.id)
+  else if(history)viewedWorkoutId.value=history.id
   else startFor(date)
   loggerOpen.value=true
 }
@@ -128,6 +137,8 @@ function scheduledName(date: string) { return workoutForDate(date)?.name ?? stor
 
 function startFor(date: string) {
   selectedDate.value = date
+  viewedWorkoutId.value=null
+  currentExercise.value=-1
   const split = store.scheduledSplitForDate(date)
   store.startWorkout(date, split?.id)
   loggerOpen.value=true
@@ -136,13 +147,15 @@ function startFor(date: string) {
 function startSelectedSplit(event: Event) {
   const select = event.target as HTMLSelectElement
   if (!select.value) return
+  viewedWorkoutId.value=null
+  currentExercise.value=-1
   store.startWorkout(selectedDate.value, select.value)
   loggerOpen.value=true
   select.value=''
 }
 
 function addSet(exIndex: number, warmup = false) {
-  const ex = store.state.draft?.exercises[exIndex]; if (!ex) return
+  const ex = store.state.draft?.exercises[exIndex]; if (!ex || isViewingCompleted.value) return
   const last = ex.sets.filter(s => s.warmup === warmup).at(-1)
   const set = freshSet(last?.weight ?? 0, last?.reps ?? 8, warmup)
   const firstWork = ex.sets.findIndex(s => !s.warmup)
@@ -150,6 +163,22 @@ function addSet(exIndex: number, warmup = false) {
   else ex.sets.push(set)
 }
 
+function removeSet(exIndex: number, setIndex: number) {
+  if (isViewingCompleted.value) return
+  const ex = store.state.draft?.exercises[exIndex]
+  const set = ex?.sets[setIndex]
+  if (!ex || !set) return
+  if (set.done && !window.confirm('Remove this completed set? This changes your workout log.')) return
+  ex.sets.splice(setIndex, 1)
+  delete skipUndos[ex.id]
+}
+function reopenWorkout() {
+  const id=viewedWorkoutId.value
+  if(!id)return
+  store.editWorkout(id)
+  viewedWorkoutId.value=null
+  currentExercise.value=-1
+}
 function warmupsFor(exIndex: number) {
   const draft = store.state.draft, ex = draft?.exercises[exIndex]
   return draft && ex ? previousWarmups(store.state.history, ex, draft.unit, draft.date, draft.id) : []
@@ -157,7 +186,7 @@ function warmupsFor(exIndex: number) {
 
 function loadWarmups(exIndex: number) {
   const ex = store.state.draft?.exercises[exIndex]
-  if (!ex || ex.sets.some(s => s.warmup)) return
+  if (!ex || isViewingCompleted.value || ex.sets.some(s => s.warmup)) return
   ex.sets.unshift(...warmupsFor(exIndex).map(s => freshSet(s.weight, s.reps, true)))
 }
 
@@ -172,7 +201,7 @@ function onSetDone(set: LoggedSet) {
 }
 
 function addExerciseToDraft(exerciseId: string) {
-  const draft = store.state.draft; const ex = store.state.library.find(e => e.id === exerciseId); if (!draft || !ex) return
+  const draft = store.state.draft; const ex = store.state.library.find(e => e.id === exerciseId); if (!draft || !ex || isViewingCompleted.value) return
   if (draft.exercises.some(e => e.exerciseId === exerciseId)) return
   const sug = store.suggestion(ex.id, ex.equipment, ex.variation, draft.date, draft.id)
   currentExercise.value=draft.exercises.length
@@ -263,22 +292,23 @@ watch(workoutHeader, (element, _, onCleanup) => {
   observer.observe(element)
   onCleanup(() => observer.disconnect())
 })
-const currentExercise = ref(0)
+const currentExercise = ref(-1)
 const reasonOpen=reactive<Record<string,boolean>>({})
 const skipReasons=['time','fatigue','discomfort','equipment unavailable','substituted exercise','other']
 const skipUndos = reactive<Record<string,SkipUndo>>({})
 watch(()=>store.state.draft?.exercises.length,length=>{currentExercise.value=Math.min(currentExercise.value,Math.max(0,(length || 1)-1))})
-const sessionProgress = computed(()=>store.state.draft ? workoutProgress(store.state.draft) : {total:0,completed:0,resolved:0})
-watch(()=>store.state.draft?.id,()=>{currentExercise.value=Math.max(0,store.state.draft?.exercises.findIndex(e=>e.sets.some(s=>!s.done&&!s.skipped&&!s.warmup)) ?? 0);for(const id of Object.keys(skipUndos))delete skipUndos[id]})
-watch([loggerOpen,()=>store.state.draft?.id],async()=>{await nextTick();if(loggerOpen.value&&store.state.draft){if(!workoutDialog.value?.open)workoutDialog.value?.showModal()}else workoutDialog.value?.close()})
+const sessionProgress = computed(()=>activeWorkout.value ? workoutProgress(activeWorkout.value) : {total:0,completed:0,resolved:0})
+watch(()=>activeWorkout.value?.id,()=>{currentExercise.value=-1;for(const id of Object.keys(skipUndos))delete skipUndos[id]})
+watch([loggerOpen,()=>activeWorkout.value?.id],async()=>{await nextTick();if(loggerOpen.value&&activeWorkout.value){if(!workoutDialog.value?.open)workoutDialog.value?.showModal()}else workoutDialog.value?.close()})
 async function chooseExercise(index:number) {
   currentExercise.value=index
   await nextTick()
   const card=workoutDialog.value?.querySelector<HTMLElement>('.drawer-card')
+  if(index<0){card?.scrollTo({top:0,behavior:reducedMotion.value==='reduce'?'instant':'smooth'});return}
   const exercise=workoutDialog.value?.querySelectorAll<HTMLElement>('.log-exercise')[index]
   if(card&&exercise)card.scrollTo({top:Math.max(0,exercise.offsetTop-(workoutDialog.value?.querySelector<HTMLElement>('.drawer-head')?.offsetHeight || 100)-30),behavior:reducedMotion.value==='reduce'?'instant':'smooth'})
 }
-function skipExercise(index:number) {const ex=store.state.draft?.exercises[index];if(!ex)return;const undo=skipRemainingSets(ex);if(undo)skipUndos[ex.id]=undo}
+function skipExercise(index:number) {const ex=store.state.draft?.exercises[index];if(!ex||isViewingCompleted.value)return;const undo=skipRemainingSets(ex);if(undo)skipUndos[ex.id]=undo}
 function undoExercise(index:number) {const ex=store.state.draft?.exercises[index];if(ex&&skipUndos[ex.id]){undoSkipRemaining(ex,skipUndos[ex.id]!);delete skipUndos[ex.id];reasonOpen[ex.id]=false}}
 function saveWorkout() {store.saveDraft()}
 onMounted(async () => { store.hydrateLocal(); await store.setSession() })
@@ -381,7 +411,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
             </template>
             <template v-else-if="workoutForDate(iso(d))">
               <div class="completed-badge">✓ Logged</div>
-              <button class="ghost full" @click.stop="store.editWorkout(workoutForDate(iso(d))!.id); loggerOpen=true; tab='history'">View / edit</button>
+              <button class="ghost full" @click.stop="openFromRhythm(iso(d),workoutForDate(iso(d))!.id); tab='history'">View workout</button>
             </template>
             <template v-else-if="scheduledName(iso(d))!=='Rest'">
               <button class="primary full" @click.stop="startFor(iso(d))">Log workout</button>
@@ -464,8 +494,8 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
             <div>{{ w.status === 'skipped' ? 'Skipped' : w.exercises.reduce((n,e)=>n+e.sets.filter(s=>s.done&&!s.warmup&&!s.skipped).length,0) + ' work sets' }}</div>
             <details v-if="w.status!=='skipped' && w.exercises.length" class="history-exercise-details"><summary>Exercises & progression</summary><div v-for="e in w.exercises" :key="e.id"><h3>{{ e.name }}</h3><ExerciseContext :exercise="e" :workout="w" historical /></div></details>
             <div class="row-actions">
-              <template v-if="w.status==='skipped'"><button class="primary small" @click="store.resumeSkippedWorkout(w.id);loggerOpen=true">Log instead</button><button class="ghost small" @click="store.deleteWorkout(w.id)">Undo skip</button></template>
-              <template v-else><button class="ghost small" @click="store.editWorkout(w.id);loggerOpen=true">Edit</button><button class="danger small" @click="store.deleteWorkout(w.id)">Delete</button></template>
+              <template v-if="w.status==='skipped'"><button class="primary small" @click="openFromRhythm(w.date,w.id)">Log instead</button><button class="ghost small" @click="store.deleteWorkout(w.id)">Undo skip</button></template>
+              <template v-else><button class="ghost small" @click="openFromRhythm(w.date,w.id)">View</button><button class="danger small" @click="store.deleteWorkout(w.id)">Delete</button></template>
             </div>
           </article>
           <div v-if="!store.state.history.length" class="empty">Your completed sessions will appear here.</div>
@@ -505,52 +535,68 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
 
     </div>
     <datalist id="workout-equipment"><option v-for="eq in equipmentOptions" :key="eq" :value="eq" /></datalist>
-    <dialog v-if="store.state.draft && loggerOpen" ref="workoutDialog" class="workout-drawer" aria-label="Log workout" @cancel="loggerOpen=false" @close="loggerOpen=false">
+    <dialog v-if="activeWorkout && loggerOpen" ref="workoutDialog" class="workout-drawer" :aria-label="isViewingCompleted ? 'View completed workout' : 'Log workout'" @cancel="loggerOpen=false" @close="loggerOpen=false">
       <div class="drawer-card" :style="{'--workout-header-height':workoutHeaderHeight+'px'}">
-        <div ref="workoutHeader" class="drawer-head"><div><div class="eyebrow">LOG WORKOUT</div><input class="workout-title" v-model="store.state.draft.name" aria-label="Workout name" /><input v-model="store.state.draft.date" type="date" aria-label="Workout date" /></div><button class="ghost" @click="loggerOpen=false">Close</button></div>
+        <div ref="workoutHeader" class="drawer-head"><div><div class="eyebrow">LOG WORKOUT</div><input class="workout-title" v-model="activeWorkout.name" :disabled="isViewingCompleted" aria-label="Workout name" /><input v-model="activeWorkout.date" :disabled="isViewingCompleted" type="date" aria-label="Workout date" /></div><button class="ghost" @click="loggerOpen=false">Close</button></div>
         <div class="workout-progress-bar" role="progressbar" :aria-valuenow="sessionProgress.resolved" :aria-valuemax="sessionProgress.total||1" :aria-valuemin="0" aria-label="Resolved working sets"><i :style="{width:(sessionProgress.total?sessionProgress.resolved/sessionProgress.total*100:0)+'%'}"></i></div>
-        <div class="workout-workspace"><aside class="workout-overview"><div class="eyebrow">YOUR SESSION</div><p>{{ sessionProgress.completed }} working sets completed · {{ sessionProgress.resolved-sessionProgress.completed }} skipped</p><nav aria-label="Workout exercises"><button v-for="(ex,i) in store.state.draft.exercises" :key="ex.id" :class="{selected:currentExercise===i}" :aria-pressed="currentExercise===i" @click="chooseExercise(i)"><span>{{ String(i+1).padStart(2,'0') }}</span>{{ ex.name }}<small>{{ ex.sets.filter(s=>s.done&&!s.warmup&&!s.skipped).length }} / {{ ex.sets.filter(s=>!s.warmup).length }}</small></button></nav><p class="muted">Working sets drive progress. Warmups stay separate.</p></aside><div class="workout-main">
-        <article v-for="(ex,ei) in store.state.draft.exercises" :key="ex.id" class="log-exercise" :class="{'mobile-active':currentExercise===ei}">
+        <div v-if="isViewingCompleted" class="workout-readonly-banner"><span>Completed workout · Read-only. Reopen to make changes.</span><button class="ghost small" @click="reopenWorkout">Reopen workout</button></div>
+        <div class="workout-workspace"><aside class="workout-overview"><div class="eyebrow">YOUR SESSION</div><p>{{ sessionProgress.completed }} working sets completed · {{ sessionProgress.resolved-sessionProgress.completed }} skipped</p><nav aria-label="Workout exercises"><button type="button" class="overview-link" :class="{selected:currentExercise===-1}" :aria-pressed="currentExercise===-1" @click="chooseExercise(-1)"><span>⌂</span> Session overview<small>{{ activeWorkout.exercises.length }} exercises</small></button><button v-for="(ex,i) in activeWorkout.exercises" :key="ex.id" :class="{selected:currentExercise===i}" :aria-pressed="currentExercise===i" @click="chooseExercise(i)"><span>{{ String(i+1).padStart(2,'0') }}</span>{{ ex.name }}<small>{{ ex.sets.filter(s=>s.done&&!s.warmup&&!s.skipped).length }} / {{ ex.sets.filter(s=>!s.warmup).length }}</small></button></nav><p class="muted">Working sets drive progress. Warmups stay separate.</p></aside><div class="workout-main">
+        <section v-if="currentExercise===-1" class="session-overview-panel">
+          <div class="eyebrow">{{ isViewingCompleted ? 'YOUR FINISHED SESSION' : 'YOUR WORKOUT' }}</div>
+          <h2>Session overview</h2>
+          <p>{{ activeWorkout.exercises.length }} exercises · {{ sessionProgress.completed }} working sets completed. {{ isViewingCompleted ? 'Browse your results below.' : 'Choose an exercise to start logging.' }}</p>
+          <div class="overview-exercise-list">
+            <button v-for="(ex,i) in activeWorkout.exercises" :key="ex.id" type="button" @click="chooseExercise(i)" :aria-label="'View '+ex.name">
+              <span class="overview-index">{{ String(i+1).padStart(2,'0') }}</span>
+              <span class="overview-exercise-info"><strong>{{ ex.name }}</strong><small>{{ ex.equipment || ex.variation || 'Exercise' }} · {{ ex.sets.filter(s=>!s.warmup).length }} working sets</small></span>
+              <span class="overview-progress">{{ ex.sets.filter(s=>s.done&&!s.warmup&&!s.skipped).length }} / {{ ex.sets.filter(s=>!s.warmup).length }}</span>
+              <span class="overview-chevron" aria-hidden="true">→</span>
+            </button>
+          </div>
+        </section>
+        <article v-for="(ex,ei) in activeWorkout.exercises" :key="ex.id" class="log-exercise" v-show="currentExercise!==-1" :class="{'mobile-active':currentExercise===ei}">
           <div class="log-ex-head">
             <div class="log-ex-main">
               <h3>{{ ex.name }}</h3>
 
             </div>
           <details class="exercise-tools"><summary>Exercise options</summary>
-              <div class="session-setup"><div class="eyebrow">TODAY’S SETUP</div><div class="session-variation"><label>Equipment<input v-model="ex.equipment" list="workout-equipment" placeholder="Choose equipment" /></label><label>Variation<input v-model="ex.variation" placeholder="Grip, bench angle…" /></label></div><label>Substituted for · optional<input v-model="ex.substitutedFrom" placeholder="Original movement" /></label><label>Exercise notes<textarea v-model="ex.notes" rows="2" placeholder="Setup, tempo, how it felt…" /></label></div>
-            <div class="exercise-actions"><button v-if="ex.sets.some(s=>!s.done&&!s.skipped&&!s.warmup)" class="text-btn muted" @click="skipExercise(ei)">Skip remaining sets</button></div>
+              <div class="session-setup"><div class="eyebrow">TODAY’S SETUP</div><div class="session-variation"><label>Equipment<input v-model="ex.equipment" :disabled="isViewingCompleted" list="workout-equipment" placeholder="Choose equipment" /></label><label>Variation<input v-model="ex.variation" :disabled="isViewingCompleted" placeholder="Grip, bench angle…" /></label></div><label>Substituted for · optional<input v-model="ex.substitutedFrom" :disabled="isViewingCompleted" placeholder="Original movement" /></label><label>Exercise notes<textarea v-model="ex.notes" :disabled="isViewingCompleted" rows="2" placeholder="Setup, tempo, how it felt…" /></label></div>
+            <div class="exercise-actions"><button v-if="!isViewingCompleted && ex.sets.some(s=>!s.done&&!s.skipped&&!s.warmup)" class="text-btn muted" @click="skipExercise(ei)">Skip remaining sets</button></div>
           </details>
           </div>
-          <ExerciseContext :exercise="ex" :workout="store.state.draft" />
-          <div v-if="skipUndos[ex.id] || ex.endedAt" class="skip-notice" role="status">Remaining working sets skipped<button v-if="skipUndos[ex.id]" class="text-btn" @click="undoExercise(ei)">Undo</button><button class="text-btn" @click="reasonOpen[ex.id]=!reasonOpen[ex.id]">{{ ex.skipReason?'Edit reason':'Add reason' }}</button><small v-if="ex.skipReason"> · {{ ex.skipReason }}</small><label v-if="reasonOpen[ex.id]">Reason · optional<select v-model="ex.skipReason" :aria-label="ex.name+' skip reason'"><option :value="undefined">No reason</option><option v-for="reason in skipReasons" :key="reason" :value="reason">{{ reason }}</option></select></label></div>
-          <div class="exercise-actions set-add-actions"><button class="text-btn" @click="addSet(ei,true)">+ Add warmup</button><button v-if="!ex.sets.some(s=>s.warmup) && warmupsFor(ei).length" class="text-btn muted" @click="loadWarmups(ei)">Use previous {{ warmupsFor(ei).length }} warmups</button></div>
+          <ExerciseContext :exercise="ex" :workout="activeWorkout" />
+          <div v-if="skipUndos[ex.id] || ex.endedAt" class="skip-notice" role="status">Remaining working sets skipped<button v-if="!isViewingCompleted && skipUndos[ex.id]" class="text-btn" @click="undoExercise(ei)">Undo</button><button v-if="!isViewingCompleted" class="text-btn" @click="reasonOpen[ex.id]=!reasonOpen[ex.id]">{{ ex.skipReason?'Edit reason':'Add reason' }}</button><small v-if="ex.skipReason"> · {{ ex.skipReason }}</small><label v-if="!isViewingCompleted && reasonOpen[ex.id]">Reason · optional<select v-model="ex.skipReason" :aria-label="ex.name+' skip reason'"><option :value="undefined">No reason</option><option v-for="reason in skipReasons" :key="reason" :value="reason">{{ reason }}</option></select></label></div>
+          <div v-if="!isViewingCompleted" class="exercise-actions set-add-actions"><button class="text-btn" @click="addSet(ei,true)">+ Add warmup</button><button v-if="!ex.sets.some(s=>s.warmup) && warmupsFor(ei).length" class="text-btn muted" @click="loadWarmups(ei)">Use previous {{ warmupsFor(ei).length }} warmups</button></div>
           <div class="set-head"><span>#</span><span>Weight</span><span>Reps</span><span>RIR</span><span>Done</span><span>Type / skip</span></div>
           <div v-for="(s,si) in ex.sets" :key="s.id" class="set-row" :class="{done:s.done,skipped:s.skipped,warmup:s.warmup,'current-set':!s.done&&!s.skipped&&!s.warmup&&ex.sets.findIndex(x=>!x.done&&!x.skipped&&!x.warmup)===si}">
             <span class="set-number">{{ si+1 }}</span>
-            <input v-model.number="s.weight" :aria-label="`${ex.name} set ${si+1} weight`" type="number" min="0" inputmode="decimal" step="0.5" :disabled="s.skipped" />
-            <input v-model.number="s.reps" :aria-label="`${ex.name} set ${si+1} reps`" type="number" min="0" inputmode="numeric" :disabled="s.skipped" />
+            <input v-model.number="s.weight" :aria-label="`${ex.name} set ${si+1} weight`" type="number" min="0" inputmode="decimal" step="0.5" :disabled="isViewingCompleted || s.skipped" />
+            <input v-model.number="s.reps" :aria-label="`${ex.name} set ${si+1} reps`" type="number" min="0" inputmode="numeric" :disabled="isViewingCompleted || s.skipped" />
             <span v-if="s.warmup || s.skipped" class="rir-not-applicable" :aria-label="s.warmup ? 'RIR not needed for warmup sets' : 'RIR not needed for skipped sets'">—</span>
-            <input v-else :value="s.rir ?? ''" :aria-label="`${ex.name} set ${si+1} RIR`" @input="s.rir = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" type="number" inputmode="decimal" min="0" max="5" step="0.5" placeholder="—" />
-            <label class="set-toggle"><input v-model="s.done" :aria-label="`${ex.name} set ${si+1} done`" type="checkbox" @change="onSetDone(s)" /></label>
+            <input v-else :value="s.rir ?? ''" :aria-label="`${ex.name} set ${si+1} RIR`" @input="s.rir = ($event.target as HTMLInputElement).value === '' ? null : Number(($event.target as HTMLInputElement).value)" :disabled="isViewingCompleted" type="number" inputmode="decimal" min="0" max="5" step="0.5" placeholder="—" />
+            <label class="set-toggle"><input v-model="s.done" :aria-label="`${ex.name} set ${si+1} done`" type="checkbox" :disabled="isViewingCompleted" @change="onSetDone(s)" /></label>
               <div class="set-inline-actions">
-                <button type="button" class="set-action" :class="{active:s.warmup}" :aria-pressed="!!s.warmup" :aria-label="`${ex.name} set ${si+1} warmup`" :title="s.warmup ? 'Change to working set' : 'Mark as warmup'" :disabled="s.skipped" @click="s.warmup=!s.warmup; if(s.warmup)s.rir=null"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 19c-3-4 3-6 0-10m4 10c-3-4 3-8 0-14m4 14c-3-4 3-6 0-10" /></svg></button>
-                <button type="button" class="set-action" :class="{active:s.skipped}" :aria-pressed="!!s.skipped" :aria-label="`${s.skipped?'Unskip':'Skip'} ${ex.name} set ${si+1}`" :title="s.skipped ? 'Unskip set' : 'Skip set'" @click="s.skipped=!s.skipped; onSetSkipped(s)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 6 9 6-9 6V6Zm13 0v12" /></svg></button>
+                <button type="button" class="set-action" :class="{active:s.warmup}" :aria-pressed="!!s.warmup" :aria-label="`${ex.name} set ${si+1} warmup`" :title="s.warmup ? 'Change to working set' : 'Mark as warmup'" :disabled="isViewingCompleted || s.skipped" @click="s.warmup=!s.warmup; if(s.warmup)s.rir=null"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 19c-3-4 3-6 0-10m4 10c-3-4 3-8 0-14m4 14c-3-4 3-6 0-10" /></svg></button>
+                <button type="button" class="set-action" :class="{active:s.skipped}" :aria-pressed="!!s.skipped" :aria-label="`${s.skipped?'Unskip':'Skip'} ${ex.name} set ${si+1}`" :title="s.skipped ? 'Unskip set' : 'Skip set'" :disabled="isViewingCompleted" @click="s.skipped=!s.skipped; onSetSkipped(s)"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m5 6 9 6-9 6V6Zm13 0v12" /></svg></button>
               </div>
             <div class="set-row-meta">
-              <SetReference :exercise="ex" :workout="store.state.draft" :index="si" />
+              <SetReference :exercise="ex" :workout="activeWorkout" :index="si" />
+              <button v-if="!isViewingCompleted" type="button" class="remove-set-action" :aria-label="`Remove ${ex.name} set ${si+1}`" title="Remove this set" @click="removeSet(ei,si)">× <span>Remove set</span></button>
               <span v-if="s.warmup || s.skipped" class="set-status" role="status">{{ s.skipped ? (s.warmup ? 'Warmup skipped' : 'Set skipped') : 'Warmup · no RIR needed' }}</span>
             </div>
           </div>
 
-          <button class="text-btn add-working-row" @click="addSet(ei)">+ Add working set</button>
+          <button v-if="!isViewingCompleted" class="text-btn add-working-row" @click="addSet(ei)">+ Add working set</button>
         </article>
-        <div v-if="store.state.draft.exercises.length" class="mobile-exercise-controls"><button class="ghost" :disabled="currentExercise===0" @click="chooseExercise(currentExercise-1)">← Previous</button><span>{{ currentExercise+1 }} / {{ store.state.draft.exercises.length }}</span><button class="ghost" :disabled="currentExercise>=store.state.draft.exercises.length-1" @click="chooseExercise(currentExercise+1)">Next →</button></div>
-        <details class="session-extras"><summary>Session options</summary><select class="full-select" aria-label="Add exercise to workout" @change="addExerciseToDraft(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value=''">
-          <option value="">+ Add exercise to workout</option><option v-for="e in store.state.library.filter(e=>!store.state.draft!.exercises.some(x=>x.exerciseId===e.id))" :key="e.id" :value="e.id">{{ e.name }}</option>
+        <div v-if="!isViewingCompleted" class="workout-completion"><p class="completion-hint">Progress saves automatically. Completing skips any sets not marked done.</p><div class="workout-completion-buttons"><button class="ghost" @click="store.skipWorkoutDraft(activeWorkout!.id)">Skip workout</button><button class="primary" @click="saveWorkout">Complete workout</button></div></div>
+        <details v-if="!isViewingCompleted" class="session-extras"><summary>Session options</summary><select class="full-select" aria-label="Add exercise to workout" @change="addExerciseToDraft(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value=''">
+          <option value="">+ Add exercise to workout</option><option v-for="e in store.state.library.filter(e=>!activeWorkout!.exercises.some(x=>x.exerciseId===e.id))" :key="e.id" :value="e.id">{{ e.name }}</option>
         </select>
-        <textarea aria-label="Workout notes" v-model="store.state.draft.notes" placeholder="Workout notes" rows="2"></textarea></details>
+        <textarea aria-label="Workout notes" v-model="activeWorkout.notes" placeholder="Workout notes" rows="2"></textarea></details>
+        <div v-else-if="activeWorkout.notes" class="session-readonly-notes"><strong>Session notes</strong><p>{{ activeWorkout.notes }}</p></div>
         </div></div>
-        <div class="drawer-actions"><p class="completion-hint">Progress saves automatically. Completing skips any sets not marked done.</p><button class="ghost" @click="store.skipWorkoutDraft(store.state.draft!.id)">Skip workout</button><button class="primary" @click="saveWorkout">Complete workout</button></div>
+        <div class="drawer-actions workout-navigation"><button class="ghost" :disabled="currentExercise===-1" @click="chooseExercise(currentExercise<=0?-1:currentExercise-1)">{{ currentExercise<=0 ? '← Overview' : '← Previous' }}</button><span class="nav-progress">{{ currentExercise===-1?'Overview':(currentExercise+1)+' / '+activeWorkout.exercises.length }}</span><button class="primary" :disabled="!activeWorkout.exercises.length" @click="chooseExercise(currentExercise===-1?0:currentExercise===activeWorkout.exercises.length-1?-1:currentExercise+1)">{{ currentExercise===-1?'Start →':currentExercise===activeWorkout.exercises.length-1?'Overview →':'Next →' }}</button></div>
       </div>
     </dialog>
 
