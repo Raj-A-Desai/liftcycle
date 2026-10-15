@@ -570,8 +570,8 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
                 <button v-for="(segment,i) in exerciseSegments" :key="segment.id" type="button"
                   :class="{selected:currentExercise===i,complete:segment.total>0&&segment.completed===segment.total}"
                   :aria-current="currentExercise===i?'step':undefined"
-                  :aria-label="${segment.name}: ${segment.completed} of ${segment.total} working sets completed"
-                  :title="${segment.name}: ${segment.completed} / ${segment.total} complete"
+                  :aria-label="' ' + segment.name + ': ' + segment.completed + ' of ' + segment.total + ' working sets completed"
+                  :title="segment.name + ': ' + segment.completed + ' / ' + segment.total + ' complete"
                   @click="chooseExercise(i)">
                   <span class="workout-segment-fill" :style="{width:(segment.total?segment.completed/segment.total*100:0)+'%'}"></span>
                   <span v-if="segment.skipped" class="workout-segment-skipped" :style="{left:(segment.total?segment.completed/segment.total*100:0)+'%',width:(segment.total?segment.skipped/segment.total*100:0)+'%'}"></span>
