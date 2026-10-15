@@ -13,7 +13,7 @@ import { exerciseSetProgress, skipRemainingSets, undoSkipRemaining, workoutProgr
 import type { SkipUndo } from './workoutIntelligence'
 import HomebaseBrand from './components/HomebaseBrand.vue'
 import AmbientAtmosphere from './components/AmbientAtmosphere.vue'
-import { dateKey } from './rhythm'
+import { dateKey, formatDate } from './rhythm'
 import { cloudConfigured } from './supabase'
 import type { Exercise, LoggedSet, PlanItem } from './types'
 import { MUSCLE_GROUPS, consistencyStats, muscleRows } from './metrics'
@@ -561,22 +561,25 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
       <div class="drawer-card" :style="{'--workout-header-height':workoutHeaderHeight+'px'}">
         <div ref="workoutHeader" class="drawer-head">
           <div class="workout-header-main">
-            <div class="eyebrow">LOG WORKOUT</div>
-            <input class="workout-title" v-model="activeWorkout.name" :disabled="isViewingCompleted" aria-label="Workout name" />
-            <div class="workout-segments" role="group" aria-label="Working set progress by exercise">
-              <button v-for="(segment,i) in exerciseSegments" :key="segment.id" type="button"
-                :class="{selected:currentExercise===i,complete:segment.total>0&&segment.completed===segment.total}"
-                :aria-current="currentExercise===i?'step':undefined"
-                :aria-label="`${segment.name}: ${segment.completed} of ${segment.total} working sets completed`"
-                :title="`${segment.name}: ${segment.completed} / ${segment.total} complete`"
-                @click="chooseExercise(i)">
-                <span class="workout-segment-fill" :style="{width:(segment.total?segment.completed/segment.total*100:0)+'%'}"></span>
-                <span v-if="segment.skipped" class="workout-segment-skipped" :style="{left:(segment.total?segment.completed/segment.total*100:0)+'%',width:(segment.total?segment.skipped/segment.total*100:0)+'%'}"></span>
-              </button>
+            <div class="workout-heading-row">
+              <input class="workout-title" v-model="activeWorkout.name" :disabled="isViewingCompleted" aria-label="Workout name" />
+              <button type="button" class="ghost workout-close" @click="loggerOpen=false">Close</button>
             </div>
-            <input v-model="activeWorkout.date" :disabled="isViewingCompleted" type="date" aria-label="Workout date" />
+            <div class="workout-progress-row">
+              <div class="workout-segments" role="group" aria-label="Working set progress by exercise">
+                <button v-for="(segment,i) in exerciseSegments" :key="segment.id" type="button"
+                  :class="{selected:currentExercise===i,complete:segment.total>0&&segment.completed===segment.total}"
+                  :aria-current="currentExercise===i?'step':undefined"
+                  :aria-label="${segment.name}: ${segment.completed} of ${segment.total} working sets completed"
+                  :title="${segment.name}: ${segment.completed} / ${segment.total} complete"
+                  @click="chooseExercise(i)">
+                  <span class="workout-segment-fill" :style="{width:(segment.total?segment.completed/segment.total*100:0)+'%'}"></span>
+                  <span v-if="segment.skipped" class="workout-segment-skipped" :style="{left:(segment.total?segment.completed/segment.total*100:0)+'%',width:(segment.total?segment.skipped/segment.total*100:0)+'%'}"></span>
+                </button>
+              </div>
+              <span class="workout-progress-count" aria-live="polite">{{ sessionProgress.completed }} / {{ sessionProgress.total }} sets</span>
+            </div>
           </div>
-          <button class="ghost" @click="loggerOpen=false">Close</button>
         </div>
 
         <div v-if="isViewingCompleted" class="workout-readonly-banner"><span>Completed workout · Read-only. Reopen to make changes.</span><button class="ghost small" @click="reopenWorkout">Reopen workout</button></div>
@@ -584,7 +587,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
         <section v-if="currentExercise===-1" class="session-overview-panel">
           <div class="eyebrow">{{ isViewingCompleted ? 'YOUR FINISHED SESSION' : 'YOUR WORKOUT' }}</div>
           <h2>Session overview</h2>
-          <p>{{ activeWorkout.exercises.length }} exercises · {{ sessionProgress.completed }} working sets completed. {{ isViewingCompleted ? 'Browse your results below.' : 'Choose an exercise to start logging.' }}</p>
+          <p>{{ formatDate(activeWorkout.date,{weekday:'short',month:'short',day:'numeric',year:'numeric'}) }} · {{ activeWorkout.exercises.length }} exercises · {{ sessionProgress.completed }} working sets completed. {{ isViewingCompleted ? 'Browse your results below.' : 'Choose an exercise to start logging.' }}</p>
           <div class="overview-exercise-list">
             <button v-for="(ex,i) in activeWorkout.exercises" :key="ex.id" type="button" @click="chooseExercise(i)" :aria-label="'View '+ex.name">
               <span class="overview-index">{{ String(i+1).padStart(2,'0') }}</span>
@@ -630,7 +633,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
           <button v-if="!isViewingCompleted" class="text-btn add-working-row" @click="addSet(ei)">+ Add working set</button>
         </article>
 
-        <details v-if="!isViewingCompleted" class="session-extras"><summary>Session options</summary><select class="full-select" aria-label="Add exercise to workout" @change="addExerciseToDraft(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value=''">
+        <details v-if="!isViewingCompleted" class="session-extras"><summary>Session options</summary><label class="session-date-field">Workout date<input v-model="activeWorkout.date" type="date" aria-label="Workout date" /></label><select class="full-select" aria-label="Add exercise to workout" @change="addExerciseToDraft(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value=''">
           <option value="">+ Add exercise to workout</option><option v-for="e in store.state.library.filter(e=>!activeWorkout!.exercises.some(x=>x.exerciseId===e.id))" :key="e.id" :value="e.id">{{ e.name }}</option>
         </select>
         <textarea aria-label="Workout notes" v-model="activeWorkout.notes" placeholder="Workout notes" rows="2"></textarea>
