@@ -42,6 +42,17 @@ export function undoSkipRemaining(exercise: LoggedExercise, undo: SkipUndo) {
   }
   if (exercise.endedAt === undo.endedAt) { exercise.endedAt = undo.previousEnd; exercise.skipReason=undo.previousReason }
 }
+/** Segment values reflect working sets only; warmups do not move workout progress.
+ * Skipped sets are tracked separately, never counted as completed. */
+export function exerciseSetProgress(exercise: LoggedExercise) {
+  const sets = exercise.sets.filter(s => !s.warmup)
+  return {
+    total: sets.length,
+    completed: sets.filter(s => s.done && !s.skipped).length,
+    skipped: sets.filter(s => s.skipped).length,
+  }
+}
+
 export function workoutProgress(workout: Workout) {
   const sets = workout.exercises.flatMap(e => e.sets).filter(s => !s.warmup)
   return { total: sets.length, completed: sets.filter(s => s.done && !s.skipped).length, resolved: sets.filter(s => s.done || s.skipped).length }
