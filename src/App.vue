@@ -9,7 +9,7 @@ import TrainingHome from './components/TrainingHome.vue'
 import ExerciseContext from './components/ExerciseContext.vue'
 import SetReference from './components/SetReference.vue'
 import { freshSet, previousWarmups } from './sessionTemplate'
-import { skipRemainingSets, undoSkipRemaining, workoutProgress } from './workoutIntelligence'
+import { exerciseSetProgress, skipRemainingSets, undoSkipRemaining, workoutProgress } from './workoutIntelligence'
 import type { SkipUndo } from './workoutIntelligence'
 import HomebaseBrand from './components/HomebaseBrand.vue'
 import AmbientAtmosphere from './components/AmbientAtmosphere.vue'
@@ -303,6 +303,9 @@ const skipReasons=['time','fatigue','discomfort','equipment unavailable','substi
 const skipUndos = reactive<Record<string,SkipUndo>>({})
 watch(()=>store.state.draft?.exercises.length,length=>{currentExercise.value=Math.min(currentExercise.value,Math.max(0,(length || 1)-1))})
 const sessionProgress = computed(()=>activeWorkout.value ? workoutProgress(activeWorkout.value) : {total:0,completed:0,resolved:0})
+const exerciseSegments = computed(() => activeWorkout.value?.exercises.map(ex => ({
+  id: ex.id, name: ex.name, ...exerciseSetProgress(ex),
+})) ?? [])
 watch(()=>activeWorkout.value?.id,()=>{currentExercise.value=-1;for(const id of Object.keys(skipUndos))delete skipUndos[id]})
 watch([loggerOpen,()=>activeWorkout.value?.id],async()=>{await nextTick();if(loggerOpen.value&&activeWorkout.value){if(!workoutDialog.value?.open)workoutDialog.value?.showModal()}else workoutDialog.value?.close()})
 async function chooseExercise(index:number) {
@@ -315,7 +318,21 @@ async function chooseExercise(index:number) {
 }
 function skipExercise(index:number) {const ex=store.state.draft?.exercises[index];if(!ex||isViewingCompleted.value)return;const undo=skipRemainingSets(ex);if(undo)skipUndos[ex.id]=undo}
 function undoExercise(index:number) {const ex=store.state.draft?.exercises[index];if(ex&&skipUndos[ex.id]){undoSkipRemaining(ex,skipUndos[ex.id]!);delete skipUndos[ex.id];reasonOpen[ex.id]=false}}
-function saveWorkout() {store.saveDraft()}
+function saveWorkout() {
+  if (isViewingCompleted.value || !store.state.draft) return
+  const remaining = sessionProgress.value.total - sessionProgress.value.resolved
+  if (remaining > 0 && !window.confirm(`Finish workout? ${remaining} unfinished working ${remaining === 1 ? 'set will' : 'sets will'} be marked skipped.`)) return
+  store.saveDraft()
+}
+function skipWorkoutFromOptions() {
+  const workout = store.state.draft
+  if (isViewingCompleted.value || !workout) return
+  const hasWork = workout.exercises.some(ex => ex.sets.some(s => !s.warmup && s.done && !s.skipped))
+  if (!window.confirm(hasWork
+    ? 'End this session early? Completed working sets will be kept, and remaining sets will be skipped.'
+    : 'Skip this workout? It will appear as skipped in your training history.')) return
+  store.skipWorkoutDraft(workout.id)
+}
 onMounted(async () => { store.hydrateLocal(); await store.setSession() })
 </script>
 
@@ -542,8 +559,26 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
     <datalist id="workout-equipment"><option v-for="eq in equipmentOptions" :key="eq" :value="eq" /></datalist>
     <dialog v-if="activeWorkout && loggerOpen" ref="workoutDialog" class="workout-drawer" :aria-label="isViewingCompleted ? 'View completed workout' : 'Log workout'" @cancel="loggerOpen=false" @close="loggerOpen=false">
       <div class="drawer-card" :style="{'--workout-header-height':workoutHeaderHeight+'px'}">
-        <div ref="workoutHeader" class="drawer-head"><div><div class="eyebrow">LOG WORKOUT</div><input class="workout-title" v-model="activeWorkout.name" :disabled="isViewingCompleted" aria-label="Workout name" /><input v-model="activeWorkout.date" :disabled="isViewingCompleted" type="date" aria-label="Workout date" /></div><button class="ghost" @click="loggerOpen=false">Close</button></div>
-        <div class="workout-progress-bar" role="progressbar" :aria-valuenow="sessionProgress.resolved" :aria-valuemax="sessionProgress.total||1" :aria-valuemin="0" aria-label="Resolved working sets"><i :style="{width:(sessionProgress.total?sessionProgress.resolved/sessionProgress.total*100:0)+'%'}"></i></div>
+        <div ref="workoutHeader" class="drawer-head">
+          <div class="workout-header-main">
+            <div class="eyebrow">LOG WORKOUT</div>
+            <input class="workout-title" v-model="activeWorkout.name" :disabled="isViewingCompleted" aria-label="Workout name" />
+            <div class="workout-segments" role="group" aria-label="Working set progress by exercise">
+              <button v-for="(segment,i) in exerciseSegments" :key="segment.id" type="button"
+                :class="{selected:currentExercise===i,complete:segment.total>0&&segment.completed===segment.total}"
+                :aria-current="currentExercise===i?'step':undefined"
+                :aria-label="`${segment.name}: ${segment.completed} of ${segment.total} working sets completed`"
+                :title="`${segment.name}: ${segment.completed} / ${segment.total} complete`"
+                @click="chooseExercise(i)">
+                <span class="workout-segment-fill" :style="{width:(segment.total?segment.completed/segment.total*100:0)+'%'}"></span>
+                <span v-if="segment.skipped" class="workout-segment-skipped" :style="{left:(segment.total?segment.completed/segment.total*100:0)+'%',width:(segment.total?segment.skipped/segment.total*100:0)+'%'}"></span>
+              </button>
+            </div>
+            <input v-model="activeWorkout.date" :disabled="isViewingCompleted" type="date" aria-label="Workout date" />
+          </div>
+          <button class="ghost" @click="loggerOpen=false">Close</button>
+        </div>
+
         <div v-if="isViewingCompleted" class="workout-readonly-banner"><span>Completed workout · Read-only. Reopen to make changes.</span><button class="ghost small" @click="reopenWorkout">Reopen workout</button></div>
         <div class="workout-workspace"><aside class="workout-overview"><div class="eyebrow">YOUR SESSION</div><p>{{ sessionProgress.completed }} working sets completed · {{ sessionProgress.resolved-sessionProgress.completed }} skipped</p><nav aria-label="Workout exercises"><button type="button" class="overview-link" :class="{selected:currentExercise===-1}" :aria-pressed="currentExercise===-1" @click="chooseExercise(-1)"><span>⌂</span> Session overview<small>{{ activeWorkout.exercises.length }} exercises</small></button><button v-for="(ex,i) in activeWorkout.exercises" :key="ex.id" :class="{selected:currentExercise===i}" :aria-pressed="currentExercise===i" @click="chooseExercise(i)"><span>{{ String(i+1).padStart(2,'0') }}</span>{{ ex.name }}<small>{{ ex.sets.filter(s=>s.done&&!s.warmup&&!s.skipped).length }} / {{ ex.sets.filter(s=>!s.warmup).length }}</small></button></nav><p class="muted">Working sets drive progress. Warmups stay separate.</p></aside><div class="workout-main">
         <section v-if="currentExercise===-1" class="session-overview-panel">
@@ -594,14 +629,23 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
 
           <button v-if="!isViewingCompleted" class="text-btn add-working-row" @click="addSet(ei)">+ Add working set</button>
         </article>
-        <div v-if="!isViewingCompleted" class="workout-completion"><p class="completion-hint">Progress saves automatically. Completing skips any sets not marked done.</p><div class="workout-completion-buttons"><button class="ghost" @click="store.skipWorkoutDraft(activeWorkout!.id)">Skip workout</button><button class="primary" @click="saveWorkout">Complete workout</button></div></div>
+
         <details v-if="!isViewingCompleted" class="session-extras"><summary>Session options</summary><select class="full-select" aria-label="Add exercise to workout" @change="addExerciseToDraft(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value=''">
           <option value="">+ Add exercise to workout</option><option v-for="e in store.state.library.filter(e=>!activeWorkout!.exercises.some(x=>x.exerciseId===e.id))" :key="e.id" :value="e.id">{{ e.name }}</option>
         </select>
-        <textarea aria-label="Workout notes" v-model="activeWorkout.notes" placeholder="Workout notes" rows="2"></textarea></details>
+        <textarea aria-label="Workout notes" v-model="activeWorkout.notes" placeholder="Workout notes" rows="2"></textarea>
+        <button type="button" class="text-btn session-skip-action" @click="skipWorkoutFromOptions">Skip workout</button>
+        </details>
         <div v-else-if="activeWorkout.notes" class="session-readonly-notes"><strong>Session notes</strong><p>{{ activeWorkout.notes }}</p></div>
         </div></div>
-        <div class="drawer-actions workout-navigation"><button class="ghost" :disabled="currentExercise===-1" @click="chooseExercise(currentExercise<=0?-1:currentExercise-1)">{{ currentExercise<=0 ? '← Overview' : '← Previous' }}</button><span class="nav-progress">{{ currentExercise===-1?'Overview':(currentExercise+1)+' / '+activeWorkout.exercises.length }}</span><button class="primary" :disabled="!activeWorkout.exercises.length" @click="chooseExercise(currentExercise===-1?0:currentExercise===activeWorkout.exercises.length-1?-1:currentExercise+1)">{{ currentExercise===-1?'Start →':currentExercise===activeWorkout.exercises.length-1?'Overview →':'Next →' }}</button></div>
+        <div class="drawer-actions workout-navigation">
+          <button class="ghost nav-previous" :disabled="currentExercise===-1" @click="chooseExercise(currentExercise<=0?-1:currentExercise-1)">{{ currentExercise<=0 ? '← Overview' : '← Previous' }}</button>
+          <div class="navigation-center">
+            <button v-if="!isViewingCompleted" class="primary finish-session-btn" @click="saveWorkout">Finish</button>
+            <span class="nav-progress">{{ currentExercise===-1 ? 'Overview' : (currentExercise+1)+' / '+activeWorkout.exercises.length }}</span>
+          </div>
+          <button class="ghost nav-next" :disabled="!activeWorkout.exercises.length" @click="chooseExercise(currentExercise===-1?0:currentExercise===activeWorkout.exercises.length-1?-1:currentExercise+1)">{{ currentExercise===-1?'Start →':currentExercise===activeWorkout.exercises.length-1?'Overview →':'Next →' }}</button>
+        </div>
       </div>
     </dialog>
 
