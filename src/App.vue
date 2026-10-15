@@ -65,7 +65,7 @@ function openFromRhythm(date: string, id?: string) {
   currentExercise.value=-1
   viewedWorkoutId.value=null
   const pending=[store.state.draft, ...(store.state.pausedDrafts ?? [])].find(w=>w?.id===id)
-  const history=store.state.history.find(w=>w.id===id)
+  const history=store.state.history.find(w=>id ? w.id===id : w.date===date && w.status!=='skipped')
   if(pending)store.editWorkout(pending.id)
   else if(history?.status==='skipped')store.resumeSkippedWorkout(history.id)
   else if(history)viewedWorkoutId.value=history.id
@@ -171,6 +171,11 @@ function removeSet(exIndex: number, setIndex: number) {
   if (set.done && !window.confirm('Remove this completed set? This changes your workout log.')) return
   ex.sets.splice(setIndex, 1)
   delete skipUndos[ex.id]
+}
+function resumeActiveDraft() {
+  viewedWorkoutId.value=null
+  currentExercise.value=-1
+  loggerOpen.value=true
 }
 function reopenWorkout() {
   const id=viewedWorkoutId.value
@@ -370,7 +375,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
       <button :class="{active:section==='rhythm'}" :aria-current="section==='rhythm'?'page':undefined" @click="section='rhythm'"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2"/></svg>Rhythm<span>Your day & week</span></button>
       <button :class="{active:section==='training'}" :aria-current="section==='training'?'page':undefined" @click="section='training';tab='train'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14m12-14v14M3 8v8m18-8v8M6 12h12"/></svg>Training<span>Your training</span></button>
       <button :class="{active:section==='guide'}" :aria-current="section==='guide'?'page':undefined" @click="section='guide'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7a3 3 0 013 3v14a4 4 0 00-4-2H4V4zm10 3a3 3 0 013-3h3v15h-3a4 4 0 00-3 2"/></svg>Guide<span>Reflect & adjust</span></button>
-      <button v-if="store.state.draft" class="resume-session" @click="loggerOpen=true">Resume {{ store.state.draft.name }}</button>
+      <button v-if="store.state.draft" class="resume-session" @click="resumeActiveDraft">Resume {{ store.state.draft.name }}</button>
     </nav>
     <div class="feature-content">
     <TodayView v-if="section==='today' && store.hydrated" @rhythm="selectedDate=$event;section='rhythm'" @workout="openFromRhythm" @guide="section='guide'" @training="section='training';tab='train'" />
@@ -565,7 +570,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
             <div class="exercise-actions"><button v-if="!isViewingCompleted && ex.sets.some(s=>!s.done&&!s.skipped&&!s.warmup)" class="text-btn muted" @click="skipExercise(ei)">Skip remaining sets</button></div>
           </details>
           </div>
-          <ExerciseContext :exercise="ex" :workout="activeWorkout" />
+          <ExerciseContext :exercise="ex" :workout="activeWorkout" :historical="isViewingCompleted" />
           <div v-if="skipUndos[ex.id] || ex.endedAt" class="skip-notice" role="status">Remaining working sets skipped<button v-if="!isViewingCompleted && skipUndos[ex.id]" class="text-btn" @click="undoExercise(ei)">Undo</button><button v-if="!isViewingCompleted" class="text-btn" @click="reasonOpen[ex.id]=!reasonOpen[ex.id]">{{ ex.skipReason?'Edit reason':'Add reason' }}</button><small v-if="ex.skipReason"> · {{ ex.skipReason }}</small><label v-if="!isViewingCompleted && reasonOpen[ex.id]">Reason · optional<select v-model="ex.skipReason" :aria-label="ex.name+' skip reason'"><option :value="undefined">No reason</option><option v-for="reason in skipReasons" :key="reason" :value="reason">{{ reason }}</option></select></label></div>
           <div v-if="!isViewingCompleted" class="exercise-actions set-add-actions"><button class="text-btn" @click="addSet(ei,true)">+ Add warmup</button><button v-if="!ex.sets.some(s=>s.warmup) && warmupsFor(ei).length" class="text-btn muted" @click="loadWarmups(ei)">Use previous {{ warmupsFor(ei).length }} warmups</button></div>
           <div class="set-head"><span>#</span><span>Weight</span><span>Reps</span><span>RIR</span><span>Done</span><span>Type / skip</span></div>
