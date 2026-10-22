@@ -6,6 +6,7 @@ import { newId } from '../id'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useLiftStore } from '../store'
 import { allowNextCalendarRefresh, calendarRequest, refreshHomebaseCalendars } from '../calendarSync'
+import type { CalendarStatus } from '../calendarSync'
 import { carryGoalsForward, dateKey, deleteWeeklyGoal, entriesFor, formatDate, formatHour, hourNow, isDone, loadFor, mergeRhythm, moveWeeklyGoal, orderedWeeklyGoals, shiftDay, weekFor, workoutEntries } from '../rhythm'
 import type { Meeting, TimelineEntry } from '../rhythm'
 const props = defineProps<{ selectedDate: string }>()
@@ -105,7 +106,7 @@ let lastCalendarRefresh=0
 async function fetchCalendarStatus(){
   if(!store.userId)return
   try{
-    const status=await calendarRequest('status')
+    const status=await calendarRequest<CalendarStatus>('status')
     calendarConnections.value=status.connections||[]
     calendarReady.value=Boolean(status.configured)
     if(calendarConnections.value.length)await syncCalendars()
@@ -114,7 +115,7 @@ async function fetchCalendarStatus(){
 async function connectCalendar(kind:'personal'|'vedflow'){
   try{
     calendarError.value=''
-    const result=await calendarRequest('start',{kind})
+    const result=await calendarRequest<{url:string}>('start',{kind})
     window.location.assign(result.url)
   }catch(e:any){calendarError.value=e.message||'Unable to connect'}
 }
