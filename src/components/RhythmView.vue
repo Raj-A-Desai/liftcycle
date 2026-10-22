@@ -199,7 +199,7 @@ async function onMessage(e:MessageEvent){
 }
 async function importTransfer(event:Event){const input=event.target as HTMLInputElement;const file=input.files?.[0];if(!file)return;try{if(file.size>5_000_000)throw new Error('Choose a Rhythm transfer file smaller than 5 MB.');await acceptTransfer(JSON.parse(await file.text()))}catch(error:any){transferError.value=true;transferMessage.value=error.message}input.value=''}
 watch([entries,selected],()=>nextTick(updateRail),{deep:true})
-onMounted(()=>{timer=window.setInterval(()=>{now.value=new Date();updateRail()},30000);window.addEventListener('message',onMessage);observer=new ResizeObserver(updateRail);if(timeline.value)observer.observe(timeline.value);nextTick(updateRail)})
+onMounted(()=>{timer=window.setInterval(()=>{now.value=new Date();updateRail();if(calendarConnections.value.length && document.visibilityState==='visible' && Date.now()-lastCalendarRefresh>15*60000)void syncCalendars()},30000);window.addEventListener('message',onMessage);observer=new ResizeObserver(updateRail);if(timeline.value)observer.observe(timeline.value);nextTick(updateRail)})
 onBeforeUnmount(()=>{window.clearInterval(timer);window.clearInterval(transferTimer);observer?.disconnect();window.removeEventListener('message',onMessage)})
 </script>
 
@@ -215,7 +215,7 @@ onBeforeUnmount(()=>{window.clearInterval(timer);window.clearInterval(transferTi
       <p v-if="!calendarReady" class="muted">Google authorization requires one-time setup in Homebase's deployment settings.</p>
       <p v-if="calendarError" class="error-note" role="alert">{{calendarError}}</p><p v-else-if="calendarStatus" class="muted" role="status">{{calendarStatus}}</p>
     </section>
-    <div v-if="!rhythm.importedAt" class="rhythm-import"><div><strong>Bring your Rhythm with you</strong><p>Move your saved goals, checkmarks, and meetings into Homebase.</p></div><div class="transfer-actions"><button class="primary" :disabled="transferring" @click="startTransfer">{{ transferring ? 'Waiting for Rhythm…' : 'Bring in Rhythm' }}</button><button class="text-btn" @click="transferFile?.click()">Import transfer file</button></div></div>
+    <div v-if="false" class="rhythm-import"><div><strong>Bring your Rhythm with you</strong><p>Move your saved goals, checkmarks, and meetings into Homebase.</p></div><div class="transfer-actions"><button class="primary" :disabled="transferring" @click="startTransfer">{{ transferring ? 'Waiting for Rhythm…' : 'Bring in Rhythm' }}</button><button class="text-btn" @click="transferFile?.click()">Import transfer file</button></div></div>
     <input ref="transferFile" hidden type="file" accept="application/json" @change="importTransfer" />
     <p v-if="transferMessage" class="transfer-message" :class="{'error-note':transferError}" role="status">{{ transferMessage }}</p>
     <div class="rhythm-week" aria-label="Choose a day"><span class="day-selection-glide" aria-hidden="true" :style="{'--selected-index':week.indexOf(selected)}"></span>
@@ -248,7 +248,7 @@ onBeforeUnmount(()=>{window.clearInterval(timer);window.clearInterval(transferTi
         <section class="rhythm-card"><div class="rhythm-card-head"><h2>Body check</h2><span class="muted">{{ basicsCount }} / 6</span></div><div class="basics-grid"><button v-for="basic in basics" :key="basic.key" :class="{checked:daily[basic.key]}" :aria-pressed="Boolean(daily[basic.key])" @click="setDaily(basic.key,!daily[basic.key])"><strong>{{ basic.label }} <span v-if="daily[basic.key]">✓</span></strong><small>{{ basic.detail }}</small></button></div><div class="water-row"><span><strong>Water</strong><small>{{ Number(daily.water||0)*30 }} / 90 oz</small></span><div><button v-for="n in 3" :key="n" :class="{checked:Number(daily.water||0)>=n}" :aria-label="n*30+' ounces of water'" :aria-pressed="Number(daily.water||0)>=n" @click="setDaily('water',Number(daily.water||0)===n?n-1:n)">{{ n }}</button></div></div></section>
         <MomentumPanel :anchor="selected" />
         <PlanAdjustments v-if="selected===today" :today="today" />
-        <details v-if="rhythm.importedAt" class="rhythm-transfer-details"><summary>Rhythm transfer</summary><p>Your saved Rhythm data was imported {{ formatDate(rhythm.importedAt.slice(0,10),{month:'short',day:'numeric'}) }}. Use Homebase for new changes.</p><button class="text-btn" @click="startTransfer">Bring in Rhythm again</button><button class="text-btn" @click="transferFile?.click()">Import transfer file</button><p v-if="rhythm.snapshotUpdatedAt">Calendar snapshot updated {{ rhythm.snapshotUpdatedAt }}. Add new meetings here as needed.</p></details>
+        <details v-if="false" class="rhythm-transfer-details"><summary>Rhythm transfer</summary><p>Your saved Rhythm data was imported {{ formatDate(rhythm.importedAt.slice(0,10),{month:'short',day:'numeric'}) }}. Use Homebase for new changes.</p><button class="text-btn" @click="startTransfer">Bring in Rhythm again</button><button class="text-btn" @click="transferFile?.click()">Import transfer file</button><p v-if="rhythm.snapshotUpdatedAt">Calendar snapshot updated {{ rhythm.snapshotUpdatedAt }}. Add new meetings here as needed.</p></details>
       </aside>
     </div>
     <IntentionCapture ref="capture" />
