@@ -199,7 +199,7 @@ async function onMessage(e:MessageEvent){
 }
 async function importTransfer(event:Event){const input=event.target as HTMLInputElement;const file=input.files?.[0];if(!file)return;try{if(file.size>5_000_000)throw new Error('Choose a Rhythm transfer file smaller than 5 MB.');await acceptTransfer(JSON.parse(await file.text()))}catch(error:any){transferError.value=true;transferMessage.value=error.message}input.value=''}
 watch([entries,selected],()=>nextTick(updateRail),{deep:true})
-onMounted(()=>{timer=window.setInterval(()=>{now.value=new Date();updateRail();if(calendarConnections.value.length && document.visibilityState==='visible' && Date.now()-lastCalendarRefresh>15*60000)void syncCalendars()},30000);window.addEventListener('message',onMessage);observer=new ResizeObserver(updateRail);if(timeline.value)observer.observe(timeline.value);nextTick(updateRail)})
+onMounted(()=>{timer=window.setInterval(()=>{now.value=new Date();updateRail()},30000);window.addEventListener('message',onMessage);observer=new ResizeObserver(updateRail);if(timeline.value)observer.observe(timeline.value);nextTick(updateRail)})
 onBeforeUnmount(()=>{window.clearInterval(timer);window.clearInterval(transferTimer);observer?.disconnect();window.removeEventListener('message',onMessage)})
 </script>
 
