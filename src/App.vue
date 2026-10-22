@@ -15,6 +15,7 @@ import HomebaseBrand from './components/HomebaseBrand.vue'
 import AmbientAtmosphere from './components/AmbientAtmosphere.vue'
 import { dateKey, formatDate } from './rhythm'
 import { cloudConfigured } from './supabase'
+import { refreshHomebaseCalendars } from './calendarSync'
 import type { Exercise, LoggedSet, PlanItem } from './types'
 import { MUSCLE_GROUPS, consistencyStats, muscleRows } from './metrics'
 import { actualExerciseSummary } from './workoutSummary'
@@ -333,7 +334,24 @@ function skipWorkoutFromOptions() {
     : 'Skip this workout? It will appear as skipped in your training history.')) return
   store.skipWorkoutDraft(workout.id)
 }
-onMounted(async () => { store.hydrateLocal(); await store.setSession() })
+function refreshCalendarsWhenReady(){
+  if (document.visibilityState === 'visible' && store.userId && store.syncStatus === 'synced') {
+    void refreshHomebaseCalendars(store).catch(() => { /* Planner shows connection errors. */ })
+  }
+}
+let calendarRefreshTimer: number | undefined
+watch([()=>store.userId,()=>store.syncStatus],refreshCalendarsWhenReady)
+onMounted(async () => { store.hydrateLocal(); await store.setSession(); refreshCalendarsWhenReady() })
+onMounted(() => {
+  calendarRefreshTimer=window.setInterval(refreshCalendarsWhenReady, 15*60_000)
+  window.addEventListener('focus',refreshCalendarsWhenReady)
+  document.addEventListener('visibilitychange',refreshCalendarsWhenReady)
+})
+onBeforeUnmount(() => {
+  window.clearInterval(calendarRefreshTimer)
+  window.removeEventListener('focus',refreshCalendarsWhenReady)
+  document.removeEventListener('visibilitychange',refreshCalendarsWhenReady)
+})
 </script>
 
 <template>
