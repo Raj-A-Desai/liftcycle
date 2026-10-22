@@ -16,6 +16,24 @@ test('goal priority survives reload and preserves identities, deletion slots and
  assert.equal(JSON.stringify(goals),before)
 })
 
+test('India leave focuses on wedding and VedFlow without Fed work, then resumes Fed on Nov 4',async()=>{
+  const {routineFor,isWeddingVedFlowFocusDate,isFedLeaveDate}=await import('../src/rhythm.ts')
+  const r=emptyRhythm()
+  assert.equal(isWeddingVedFlowFocusDate('2026-10-20'),false)
+  assert.equal(isWeddingVedFlowFocusDate('2026-10-21'),true)
+  assert.equal(isWeddingVedFlowFocusDate('2026-11-03'),true)
+  assert.equal(isWeddingVedFlowFocusDate('2026-11-04'),false)
+  for(const date of ['2026-10-21','2026-10-25','2026-11-03']){
+    assert.equal(isFedLeaveDate(date),true)
+    const entries=routineFor(r,date)
+    assert.ok(entries.some(e=>e.id==='wedding-focus'&&e.intent==='flexible'))
+    assert.ok(entries.some(e=>e.id==='vedflow-focus'&&e.intent==='flexible'))
+    assert.equal(entries.some(e=>e.id.startsWith('fed')||e.id==='standup'),false)
+  }
+  assert.ok(routineFor(r,'2026-11-04').some(e=>e.id==='fed'))
+  assert.equal(routineFor({...r,load:{'2026-10-22':'off'}},'2026-10-22').some(e=>e.id==='wedding-focus'),false)
+})
+
 test('Training is the only source of workouts; Monday does not invent Push',()=>{
   const r=emptyRhythm()
   assert.equal(entriesFor(r,'2026-10-05',workoutEntries('2026-10-05',null,[],null)).filter(e=>e.kind==='workout').length,0)
