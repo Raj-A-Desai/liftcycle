@@ -95,6 +95,74 @@ function saveMeeting() {
 }
 function deleteMeeting(){if(!confirm('Delete this meeting?'))return;rhythm.value.meetings=rhythm.value.meetings.filter(m=>m.id!==meeting.id);dialog.value?.close()}
 function resetDay(){if(!confirm('Reset this day’s routine checkmarks and body check? Workouts and meetings stay saved.'))return;delete rhythm.value.daily[selected.value];delete rhythm.value.load[selected.value]}
+const calendarConnections=ref<{id:string;kind:string;email:string;lastSync:string|null}[]>([])
+const calendarReady=ref(false)
+const calendarLoading=ref(false)
+const calendarError=ref('')
+const calendarStatus=ref('')
+let lastCalendarRefresh=0
+async function calendarRequest(action:string,body?:object) {
+  const {supabase}=await import('../supabase')
+  const {data}=await supabase.auth.getSession()
+  if(!data.session?.access_token)throw Error('Sign in to Homebase to connect your calendars.')
+  const response=await fetch('/api/calendar?action='+action,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+data.session.access_token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})})
+  const value=await response.json()
+  if(!response.ok)throw Error(value.error || 'Calendar connection failed')
+  return value
+}
+async function fetchCalendarStatus(){
+  if(!store.userId)return
+  try{
+    const status=await calendarRequest('status')
+    calendarConnections.value=status.connections||[]
+    calendarReady.value=Boolean(status.configured)
+    if(calendarConnections.value.length)await syncCalendars()
+  }catch(e:any){calendarError.value=e.message||'Calendar connection unavailable'}
+}
+async function connectCalendar(kind:'personal'|'vedflow'){
+  try{
+    calendarError.value=''
+    const result=await calendarRequest('start',{kind})
+    window.location.assign(result.url)
+  }catch(e:any){calendarError.value=e.message||'Unable to connect'}
+}
+async function syncCalendars(){
+  if(calendarLoading.value||!calendarConnections.value.length||Date.now()-lastCalendarRefresh<60000)return
+  calendarLoading.value=true;calendarError.value=''
+  try{
+    const result=await calendarRequest('sync',{})
+    const current=rhythm.value.calendarSnapshot||{}
+    const snapshot:typeof current={}
+    for(const [date,events] of Object.entries(current)){
+      const retained=events.filter(event=>!event.id.startsWith('google:'))
+      if(retained.length)snapshot[date]=retained
+    }
+    const {from,to}=result.range
+    for(const date of Object.keys(snapshot))if(date>=from&&date<=to)snapshot[date]=snapshot[date]!.filter(e=>!e.id.startsWith('google:'))
+    for(const [date,events] of Object.entries(result.snapshot as typeof current))snapshot[date]=[...(snapshot[date]||[]),...events]
+    rhythm.value.calendarSnapshot=snapshot
+    rhythm.value.snapshotUpdatedAt=result.updatedAt
+    calendarStatus.value='Calendars refreshed'
+    lastCalendarRefresh=Date.now()
+  }catch(e:any){calendarError.value=e.message||'Calendar refresh failed'}finally{calendarLoading.value=false}
+}
+async function disconnectCalendar(id:string){
+  if(!window.confirm('Disconnect this Google Calendar account from Homebase?'))return
+  try{
+    await calendarRequest('remove',{id})
+    calendarConnections.value=calendarConnections.value.filter(c=>c.id!==id)
+    // Remove disconnected account's cached entries while retaining other accounts and manual meetings.
+    for(const date of Object.keys(rhythm.value.calendarSnapshot)){
+      rhythm.value.calendarSnapshot[date]=rhythm.value.calendarSnapshot[date]!.filter(e=>!e.id.startsWith('google:'+id+':'))
+    }
+    if(calendarConnections.value.length)lastCalendarRefresh=0
+    await syncCalendars()
+  }catch(e:any){calendarError.value=e.message||'Unable to disconnect'}
+}
+watch(()=>store.userId,(id)=>{if(id)void fetchCalendarStatus();else calendarConnections.value=[]},{immediate:true})
+onMounted(()=>{window.addEventListener('focus',calendarOnFocus)})
+onBeforeUnmount(()=>{window.removeEventListener('focus',calendarOnFocus)})
+function calendarOnFocus(){if(Date.now()-lastCalendarRefresh>15*60000)void fetchCalendarStatus()}
 const transferMessage=ref('')
 const transferError=ref(false)
 const transferring=ref(false)
@@ -137,7 +205,16 @@ onBeforeUnmount(()=>{window.clearInterval(timer);window.clearInterval(transferTi
 
 <template>
   <section class="rhythm-page">
-    <div class="module-heading"><div><div class="eyebrow">RHYTHM</div><h1>Your day, in focus.</h1></div><div class="rhythm-week-controls"><button class="ghost icon" aria-label="Previous week" @click="selected=shiftDay(selected,-7)">‹</button><button class="ghost range-label" @click="selected=today">{{ weekLabel }}</button><button class="ghost icon" aria-label="Next week" @click="selected=shiftDay(selected,7)">›</button></div></div>
+    <div class="module-heading"><div><div class="eyebrow">HOMEBASE · PLANNER</div><h1>Your day, in focus.</h1></div><div class="rhythm-week-controls"><button class="ghost icon" aria-label="Previous week" @click="selected=shiftDay(selected,-7)">‹</button><button class="ghost range-label" @click="selected=today">{{ weekLabel }}</button><button class="ghost icon" aria-label="Next week" @click="selected=shiftDay(selected,7)">›</button></div></div>
+    <section class="rhythm-card" style="margin:0 0 20px;padding:18px 22px">
+      <div class="rhythm-card-head"><div><div class="eyebrow">CONNECTED CALENDARS</div><h2>Google Calendar</h2></div><button class="ghost small" :disabled="calendarLoading || !calendarConnections.length" @click="lastCalendarRefresh=0;syncCalendars()">{{calendarLoading?'Refreshing…':'Refresh'}}</button></div>
+      <p class="muted">Your meetings refresh inside Homebase. Fed calendar details stay private.</p>
+      <div v-for="connection in calendarConnections" :key="connection.id" style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin:8px 0"><span>{{connection.kind==='vedflow'?'VedFlow (busy only)':'Personal'}} · {{connection.email}}</span><button class="text-btn small" @click="disconnectCalendar(connection.id)">Disconnect</button></div>
+      <div v-if="!calendarConnections.some(c=>c.kind==='personal')"><button class="ghost small" :disabled="!calendarReady" @click="connectCalendar('personal')">+ Connect personal Google Calendar</button></div>
+      <div v-if="!calendarConnections.some(c=>c.kind==='vedflow')" style="margin-top:8px"><button class="ghost small" :disabled="!calendarReady" @click="connectCalendar('vedflow')">+ Connect VedFlow (private)</button></div>
+      <p v-if="!calendarReady" class="muted">Google authorization requires one-time setup in Homebase's deployment settings.</p>
+      <p v-if="calendarError" class="error-note" role="alert">{{calendarError}}</p><p v-else-if="calendarStatus" class="muted" role="status">{{calendarStatus}}</p>
+    </section>
     <div v-if="!rhythm.importedAt" class="rhythm-import"><div><strong>Bring your Rhythm with you</strong><p>Move your saved goals, checkmarks, and meetings into Homebase.</p></div><div class="transfer-actions"><button class="primary" :disabled="transferring" @click="startTransfer">{{ transferring ? 'Waiting for Rhythm…' : 'Bring in Rhythm' }}</button><button class="text-btn" @click="transferFile?.click()">Import transfer file</button></div></div>
     <input ref="transferFile" hidden type="file" accept="application/json" @change="importTransfer" />
     <p v-if="transferMessage" class="transfer-message" :class="{'error-note':transferError}" role="status">{{ transferMessage }}</p>
