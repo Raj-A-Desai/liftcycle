@@ -389,7 +389,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
     <div v-if="store.syncError || toastError" class="error-note">{{ store.syncError || toastError }}</div>
     <nav class="homebase-nav" aria-label="Homebase features">
       <button :class="{active:section==='today'}" :aria-current="section==='today'?'page':undefined" @click="section='today'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l9-8 9 8v10h-6v-7H9v7H3z"/></svg>Today<span>What matters now</span></button>
-      <button :class="{active:section==='rhythm'}" :aria-current="section==='rhythm'?'page':undefined" @click="section='rhythm'"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2"/></svg>Rhythm<span>Your day & week</span></button>
+      <button :class="{active:section==='rhythm'}" :aria-current="section==='rhythm'?'page':undefined" @click="section='rhythm'"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M7 3v4m10-4v4M3 11h18m-13 4h2m4 0h2"/></svg>Planner<span>Your day & week</span></button>
       <button :class="{active:section==='training'}" :aria-current="section==='training'?'page':undefined" @click="section='training';tab='train'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 5v14m12-14v14M3 8v8m18-8v8M6 12h12"/></svg>Training<span>Your training</span></button>
       <button :class="{active:section==='guide'}" :aria-current="section==='guide'?'page':undefined" @click="section='guide'"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 4h7a3 3 0 013 3v14a4 4 0 00-4-2H4V4zm10 3a3 3 0 013-3h3v15h-3a4 4 0 00-3 2"/></svg>Guide<span>Reflect & adjust</span></button>
       <button v-if="store.state.draft" class="resume-session" @click="resumeActiveDraft">Resume {{ store.state.draft.name }}</button>
@@ -412,7 +412,7 @@ onMounted(async () => { store.hydrateLocal(); await store.setSession() })
           <div>
             <div class="eyebrow">LIFTCYCLE</div>
             <h1>Your training week</h1>
-            <p>Your cycle, workouts, and progress—connected to Rhythm.</p>
+            <p>Your cycle, workouts, and progress—connected to Planner.</p>
           </div>
           <div class="head-actions">
             <button class="ghost" @click="moveWeek(-1)">←</button>
