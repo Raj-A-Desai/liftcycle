@@ -117,13 +117,15 @@ function federalHoliday(key: string) {
 export function loadFor(rhythm: RhythmState, key: string): DayLoad {
   return rhythm.load[key] || ([0,6].includes(weekday(key)) || federalHoliday(key) ? 'off' : 'yellow')
 }
+// Fed leave: no Fed standups, focus blocks, or work coverage until November 4.
+export const isFedLeaveDate = (key: string) => key >= '2026-10-20' && key <= '2026-11-03'
 export function routineFor(rhythm: RhythmState, key: string): TimelineEntry[] {
   const load = loadFor(rhythm,key), day = weekday(key), l = rhythm.labels
   const task = (id: string, title: string, detail: string, at: number, endAt: number): TimelineEntry => ({id,title,detail,at,endAt,kind:'task',intent:id === 'standup' ? 'fixed' : 'flexible'})
   const walk = task('walk',load === 'red' ? 'Walk at least 20 minutes' : 'Walk 40–45 minutes',l.walking,load === 'red' ? 17.55 : load === 'off' ? 12 : 12.5,load === 'red' ? 17.55 + 1/3 : load === 'off' ? 12.75 : 13.25)
   const business = task('rrw',`${l.business} touchpoint`,'One useful follow-up, post, or admin task',17.5,18)
   const read = task('read','Read 15–20 minutes','Phone down · 10 minutes still counts',22.5,22.5 + 1/3)
-  const work = load === 'off' ? [] : [
+  const work = (load === 'off' || isFedLeaveDate(key)) ? [] : [
     ...(![0,6].includes(day) ? [task('standup',`${l.work} standup`,'Confirm the day’s actual load',9,10)] : []),
     ...(load === 'yellow' ? [task('fed',`${l.work} + meetings`,'Small gaps are maintenance only',10,17.5)] : [
       task(load === 'red' ? 'fed-focus' : 'fed-priority',load === 'red' ? `${l.work} focus block` : `Finish ${l.work} priorities`,'Primary deliverables first',10,12.5),
