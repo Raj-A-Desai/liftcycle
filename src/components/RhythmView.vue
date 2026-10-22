@@ -5,6 +5,7 @@ import IntentionCapture from './IntentionCapture.vue'
 import { newId } from '../id'
 import { computed, nextTick, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useLiftStore } from '../store'
+import { allowNextCalendarRefresh, calendarRequest, refreshHomebaseCalendars } from '../calendarSync'
 import { carryGoalsForward, dateKey, deleteWeeklyGoal, entriesFor, formatDate, formatHour, hourNow, isDone, loadFor, mergeRhythm, moveWeeklyGoal, orderedWeeklyGoals, shiftDay, weekFor, workoutEntries } from '../rhythm'
 import type { Meeting, TimelineEntry } from '../rhythm'
 const props = defineProps<{ selectedDate: string }>()
@@ -101,15 +102,6 @@ const calendarLoading=ref(false)
 const calendarError=ref('')
 const calendarStatus=ref('')
 let lastCalendarRefresh=0
-async function calendarRequest(action:string,body?:object) {
-  const {supabase}=await import('../supabase')
-  const {data}=await supabase.auth.getSession()
-  if(!data.session?.access_token)throw Error('Sign in to Homebase to connect your calendars.')
-  const response=await fetch('/api/calendar?action='+action,{method:body?'POST':'GET',headers:{Authorization:'Bearer '+data.session.access_token,...(body?{'Content-Type':'application/json'}:{})},...(body?{body:JSON.stringify(body)}:{})})
-  const value=await response.json()
-  if(!response.ok)throw Error(value.error || 'Calendar connection failed')
-  return value
-}
 async function fetchCalendarStatus(){
   if(!store.userId)return
   try{
@@ -127,22 +119,17 @@ async function connectCalendar(kind:'personal'|'vedflow'){
   }catch(e:any){calendarError.value=e.message||'Unable to connect'}
 }
 async function syncCalendars(){
-  if(calendarLoading.value||!calendarConnections.value.length||Date.now()-lastCalendarRefresh<60000)return
-  calendarLoading.value=true;calendarError.value=''
+  if(calendarLoading.value || !calendarConnections.value.length) return
+  if(store.syncStatus !== 'synced') {
+    calendarStatus.value='Finishing Homebase cloud sync before refreshing calendars'
+    return
+  }
+  calendarLoading.value=true
+  calendarError.value=''
   try{
-    const result=await calendarRequest('sync',{})
-    const current=rhythm.value.calendarSnapshot||{}
-    const snapshot:typeof current={}
-    for(const [date,events] of Object.entries(current)){
-      const retained=events.filter(event=>!event.id.startsWith('google:'))
-      if(retained.length)snapshot[date]=retained
-    }
-    const {from,to}=result.range
-    for(const date of Object.keys(snapshot))if(date>=from&&date<=to)snapshot[date]=snapshot[date]!.filter(e=>!e.id.startsWith('google:'))
-    for(const [date,events] of Object.entries(result.snapshot as typeof current))snapshot[date]=[...(snapshot[date]||[]),...events]
-    rhythm.value.calendarSnapshot=snapshot
-    rhythm.value.snapshotUpdatedAt=result.updatedAt
-    calendarStatus.value='Calendars refreshed'
+    allowNextCalendarRefresh()
+    await refreshHomebaseCalendars(store,true)
+    calendarStatus.value='Calendars refreshed in Homebase'
     lastCalendarRefresh=Date.now()
   }catch(e:any){calendarError.value=e.message||'Calendar refresh failed'}finally{calendarLoading.value=false}
 }
@@ -159,6 +146,7 @@ async function disconnectCalendar(id:string){
     await syncCalendars()
   }catch(e:any){calendarError.value=e.message||'Unable to disconnect'}
 }
+watch(()=>store.syncStatus,(status)=>{if(status==='synced' && calendarConnections.value.length && !lastCalendarRefresh)void syncCalendars()})
 watch(()=>store.userId,(id)=>{if(id)void fetchCalendarStatus();else calendarConnections.value=[]},{immediate:true})
 onMounted(()=>{window.addEventListener('focus',calendarOnFocus)})
 onBeforeUnmount(()=>{window.removeEventListener('focus',calendarOnFocus)})
@@ -205,7 +193,7 @@ onBeforeUnmount(()=>{window.clearInterval(timer);window.clearInterval(transferTi
 
 <template>
   <section class="rhythm-page">
-    <div class="module-heading"><div><div class="eyebrow">HOMEBASE · PLANNER</div><h1>Your day, in focus.</h1></div><div class="rhythm-week-controls"><button class="ghost icon" aria-label="Previous week" @click="selected=shiftDay(selected,-7)">‹</button><button class="ghost range-label" @click="selected=today">{{ weekLabel }}</button><button class="ghost icon" aria-label="Next week" @click="selected=shiftDay(selected,7)">›</button></div></div>
+    <div class="module-heading"><div><div class="eyebrow">HOMEBASE · PLANNER</div><h1>Your day, in focus.</h1><p v-if="selected >= '2026-10-21' && selected <= '2026-11-03'" class="muted">Wedding + VedFlow focus · Fed leave through November 3</p></div><div class="rhythm-week-controls"><button class="ghost icon" aria-label="Previous week" @click="selected=shiftDay(selected,-7)">‹</button><button class="ghost range-label" @click="selected=today">{{ weekLabel }}</button><button class="ghost icon" aria-label="Next week" @click="selected=shiftDay(selected,7)">›</button></div></div>
     <section class="rhythm-card" style="margin:0 0 20px;padding:18px 22px">
       <div class="rhythm-card-head"><div><div class="eyebrow">CONNECTED CALENDARS</div><h2>Google Calendar</h2></div><button class="ghost small" :disabled="calendarLoading || !calendarConnections.length" @click="lastCalendarRefresh=0;syncCalendars()">{{calendarLoading?'Refreshing…':'Refresh'}}</button></div>
       <p class="muted">Your meetings refresh inside Homebase. Fed calendar details stay private.</p>
@@ -228,7 +216,7 @@ onBeforeUnmount(()=>{window.clearInterval(timer);window.clearInterval(transferTi
     <div class="rhythm-layout">
       <section class="day-panel">
         <div class="day-panel-head"><div><p class="eyebrow">{{ formatDate(selected,{month:'long',day:'numeric',year:'numeric'}) }}</p><h2>{{ formatDate(selected,{weekday:'long'}) }}</h2></div><div class="head-actions"><button class="ghost small" @click="selected=today">Today</button><button class="ghost icon" aria-label="Previous day" @click="selected=shiftDay(selected,-1)">‹</button><button class="ghost icon" aria-label="Next day" @click="selected=shiftDay(selected,1)">›</button></div></div>
-        <div class="rhythm-toolbar"><label class="day-load">{{ rhythm.labels.work }} day<select v-model="load" aria-label="Workday intensity"><option value="red">Busy</option><option value="yellow">Normal</option><option value="green">Light</option><option value="off">Off</option></select></label><span class="time-zone-note">ET · flexible times are targets</span><button class="text-btn small" @click="capture?.open(selected)">+ Intention</button><button class="ghost small add-meeting" @click="openMeeting()">+ Add meeting</button></div>
+        <div class="rhythm-toolbar"><label class="day-load">{{ selected >= '2026-10-21' && selected <= '2026-11-03' ? 'Focus' : rhythm.labels.work }} day<select v-model="load" aria-label="Workday intensity"><option value="red">Busy</option><option value="yellow">Normal</option><option value="green">Light</option><option value="off">Off</option></select></label><span class="time-zone-note">ET · flexible times are targets</span><button class="text-btn small" @click="capture?.open(selected)">+ Intention</button><button class="ghost small add-meeting" @click="openMeeting()">+ Add meeting</button></div>
         <div ref="timeline" class="rhythm-timeline">
           <article v-for="(entry,i) in entries" :key="entry.id+'-'+entry.at" class="rhythm-entry" :class="[entry.kind,entry.intent,{done:isDone(rhythm,selected,entry),current:isCurrent(entry),skipped:entry.status==='skipped'}]" :data-timed="!entry.allDay&&!entry.untimed?'':undefined" :data-start="entry.at" :data-end="entry.endAt">
             <div class="entry-time"><strong>{{ entry.untimed ? 'Open' : entry.allDay ? 'All day' : formatHour(entry.at) }}</strong><small v-if="entry.untimed">{{ Math.round((entry.endAt-entry.at)*60) }} min</small><small v-else-if="!entry.allDay">– {{ formatHour(entry.endAt) }}</small></div><span class="entry-dot" aria-hidden="true"></span>
