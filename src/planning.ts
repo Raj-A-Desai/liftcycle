@@ -56,7 +56,7 @@ export function deriveMomentum(state: LiftCycleState, anchor = dateKey()) {
 export interface PlanningSuggestion { id: string; kind: 'training' | 'intention' | 'pattern' | 'overload'; title: string; detail: string; from?: string; to?: string; intentionId?: string }
 export function planningSuggestions(state: LiftCycleState, today = dateKey()): PlanningSuggestion[] {
   const suggestions: PlanningSuggestion[] = []
-  const hasSession = (d: string) => state.history.some(w=>w.date === d && w.status !== 'skipped') || state.draft?.date === d
+  const hasSession = (d: string) => state.history.some(w=>w.date === d && w.status !== 'skipped' && w.kind !== 'freeform') || (state.draft?.date === d && state.draft.kind !== 'freeform')
   const roomFor=(d:string,minutes:number)=>{
     const fixed=dayEntries(state,d).filter(e=>e.intent==='fixed'&&!e.allDay).sort((a,b)=>a.at-b.at)
     let end=8

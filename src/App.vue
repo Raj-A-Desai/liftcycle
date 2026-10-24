@@ -66,7 +66,7 @@ function openFromRhythm(date: string, id?: string) {
   currentExercise.value=-1
   viewedWorkoutId.value=null
   const pending=[store.state.draft, ...(store.state.pausedDrafts ?? [])].find(w=>w?.id===id)
-  const history=store.state.history.find(w=>id ? w.id===id : w.date===date && w.status!=='skipped')
+  const history=store.state.history.find(w=>id ? w.id===id : w.date===date && w.status!=='skipped' && w.kind!=='freeform')
   if(pending)store.editWorkout(pending.id)
   else if(history?.status==='skipped')store.resumeSkippedWorkout(history.id)
   else if(history)viewedWorkoutId.value=history.id
@@ -133,7 +133,7 @@ function iso(d: Date) { return `${d.getFullYear()}-${String(d.getMonth()+1).padS
 function fmtDay(d: Date) { return d.toLocaleDateString(undefined,{weekday:'short',day:'numeric'}) }
 function moveWeek(n: number) { const d = new Date(weekAnchor.value); d.setDate(d.getDate()+n*7); weekAnchor.value = d; selectedDate.value=iso(d) }
 
-function workoutForDate(date: string) { return store.state.history.find(w => w.date === date) }
+function workoutForDate(date: string) { return store.state.history.find(w => w.date === date && w.kind !== 'freeform') }
 function scheduledName(date: string) { return workoutForDate(date)?.name ?? store.scheduledSplitForDate(date)?.name ?? 'Rest' }
 
 function startFor(date: string) {
@@ -142,6 +142,14 @@ function startFor(date: string) {
   currentExercise.value=-1
   const split = store.scheduledSplitForDate(date)
   store.startWorkout(date, split?.id)
+  loggerOpen.value=true
+}
+
+function startFreeformWorkout(date = dateKey()) {
+  selectedDate.value=date
+  viewedWorkoutId.value=null
+  currentExercise.value=-1
+  store.startFreeformWorkout(date)
   loggerOpen.value=true
 }
 
@@ -206,6 +214,48 @@ function onSetDone(set: LoggedSet) {
   if (set.done) set.skipped = false
 }
 
+const exercisePickerOpen = ref(false)
+const exerciseSearch = ref('')
+const quickCreatingExercise = ref(false)
+const quickExerciseName = ref('')
+const quickEquipment = ref('Bodyweight')
+const quickMuscle = ref('')
+const availableSessionExercises = computed(() =>
+  store.state.library
+    .filter(ex => !activeWorkout.value?.exercises.some(item => item.exerciseId === ex.id))
+    .filter(ex => ex.name.toLowerCase().includes(exerciseSearch.value.trim().toLowerCase()))
+    .sort((a,b) => a.name.localeCompare(b.name))
+    .slice(0, 10)
+)
+function openExercisePicker() {
+  if(isViewingCompleted.value)return
+  exercisePickerOpen.value=true
+  quickCreatingExercise.value=false
+  void chooseExercise(-1)
+}
+function createQuickExercise() {
+  const name=quickExerciseName.value.trim()
+  if(!name||!store.state.draft||isViewingCompleted.value)return
+  const existing=store.state.library.find(ex=>ex.name.toLowerCase()===name.toLowerCase())
+  if(existing){addExerciseToDraft(existing.id);return}
+  const equipment=quickEquipment.value
+  const created=store.addExercise({
+    name,equipment,variation:'',loadMode:equipment==='Bodyweight'?'bodyweight':'external',
+    loadBasis:'total',unilateral:false,repMin:8,repMax:15,notes:'',
+    credits:quickMuscle.value?{[quickMuscle.value]:1}:{}
+  })
+  addExerciseToDraft(created.id)
+}
+function removeDraftExercise(index:number) {
+  const draft=store.state.draft
+  if(!draft||isViewingCompleted.value)return
+  const ex=draft.exercises[index]
+  if(!ex)return
+  if(ex.sets.some(s=>s.done)&&!window.confirm(`Remove ${ex.name} and its logged sets from this workout?`))return
+  draft.exercises.splice(index,1)
+  delete skipUndos[ex.id]
+  currentExercise.value=-1
+}
 function addExerciseToDraft(exerciseId: string) {
   const draft = store.state.draft; const ex = store.state.library.find(e => e.id === exerciseId); if (!draft || !ex || isViewingCompleted.value) return
   if (draft.exercises.some(e => e.exerciseId === exerciseId)) return
@@ -216,6 +266,12 @@ function addExerciseToDraft(exerciseId: string) {
     loadMode: ex.loadMode, loadBasis: ex.loadBasis, unilateral: ex.unilateral, credits: JSON.parse(JSON.stringify(ex.credits)),
     sets: [{ id: newId(), weight: sug?.load ?? 0, reps: sug?.reps ?? ex.repMin, rir: null, warmup:false, done:false, skipped:false }]
   })
+  exercisePickerOpen.value=false
+  exerciseSearch.value=''
+  quickCreatingExercise.value=false
+  quickExerciseName.value=''
+  quickEquipment.value='Bodyweight'
+  quickMuscle.value=''
 }
 
 async function signInWithPassword() {
@@ -307,7 +363,13 @@ const sessionProgress = computed(()=>activeWorkout.value ? workoutProgress(activ
 const exerciseSegments = computed(() => activeWorkout.value?.exercises.map(ex => ({
   id: ex.id, name: ex.name, ...exerciseSetProgress(ex),
 })) ?? [])
-watch(()=>activeWorkout.value?.id,()=>{currentExercise.value=-1;for(const id of Object.keys(skipUndos))delete skipUndos[id]})
+watch(()=>activeWorkout.value?.id,()=>{
+  currentExercise.value=-1
+  exercisePickerOpen.value=activeWorkout.value?.kind==='freeform' && !activeWorkout.value.exercises.length
+  exerciseSearch.value=''
+  quickCreatingExercise.value=false
+  for(const id of Object.keys(skipUndos))delete skipUndos[id]
+})
 watch([loggerOpen,()=>activeWorkout.value?.id],async()=>{await nextTick();if(loggerOpen.value&&activeWorkout.value){if(!workoutDialog.value?.open)workoutDialog.value?.showModal()}else workoutDialog.value?.close()})
 async function chooseExercise(index:number) {
   currentExercise.value=index
@@ -321,6 +383,10 @@ function skipExercise(index:number) {const ex=store.state.draft?.exercises[index
 function undoExercise(index:number) {const ex=store.state.draft?.exercises[index];if(ex&&skipUndos[ex.id]){undoSkipRemaining(ex,skipUndos[ex.id]!);delete skipUndos[ex.id];reasonOpen[ex.id]=false}}
 function saveWorkout() {
   if (isViewingCompleted.value || !store.state.draft) return
+  if(store.state.draft.kind==='freeform' && sessionProgress.value.completed===0){
+    window.alert('Log at least one working set before finishing. Close this session to resume it later.')
+    return
+  }
   const remaining = sessionProgress.value.total - sessionProgress.value.resolved
   if (remaining > 0 && !window.confirm(`Finish workout? ${remaining} unfinished working ${remaining === 1 ? 'set will' : 'sets will'} be marked skipped.`)) return
   store.saveDraft()
@@ -424,7 +490,7 @@ onBeforeUnmount(() => {
     <nav v-if="section==='training' && ['cycle','schedule','exercises'].includes(tab)" class="program-navigation" aria-label="Program tools"><button class="text-btn" :aria-current="tab==='cycle'?'page':undefined" @click="tab='cycle'">Plan & cycle</button><button class="text-btn" :aria-current="tab==='schedule'?'page':undefined" @click="tab='schedule'">Training week</button><button class="text-btn" :aria-current="tab==='exercises'?'page':undefined" @click="tab='exercises'">Exercise library</button><button class="text-btn" @click="tab='progress'">Muscle targets</button></nav>
 
     <main v-if="section==='training'">
-      <TrainingHome v-if="tab==='train'" @workout="openFromRhythm" @manage="tab='cycle'" @schedule="tab='schedule'" @history="tab='history'" />
+      <TrainingHome v-if="tab==='train'" @workout="openFromRhythm" @manage="tab='cycle'" @schedule="tab='schedule'" @history="tab='history'" @freeform="startFreeformWorkout" />
       <section v-else-if="tab==='schedule'" class="page">
         <div class="section-head">
           <div>
@@ -445,6 +511,7 @@ onBeforeUnmount(() => {
           <article v-for="d in weekDates()" :key="iso(d)" class="day-card" :class="{today:iso(d)===iso(new Date()), 'is-skipped':workoutForDate(iso(d))?.status==='skipped'}" @click="selectedDate=iso(d)">
             <div class="day-label">{{ fmtDay(d) }}</div>
             <div class="scheduled">{{ scheduledName(iso(d)) }}</div>
+            <small v-if="store.state.history.some(w=>w.date===iso(d)&&w.kind==='freeform'&&w.status!=='skipped')" class="freeform-day-label">✓ Freeform logged</small>
             <template v-if="workoutForDate(iso(d))?.status === 'skipped'">
               <span class="skipped-badge">Skipped</span>
               <button class="restore-workout" :aria-label="`Restore ${scheduledName(iso(d))} workout on ${fmtDay(d)}`" @click.stop="store.deleteWorkout(workoutForDate(iso(d))!.id)">Restore</button>
@@ -471,6 +538,7 @@ onBeforeUnmount(() => {
 
         <div class="quick-log">
           <input v-model="selectedDate" type="date" />
+          <button class="ghost" @click="startFreeformWorkout(selectedDate)">+ Freeform workout</button>
           <select @change="startSelectedSplit">
             <option value="">Log another workout…</option>
             <option v-for="s in store.state.plan.splits" :key="s.id" :value="s.id">{{ s.name }}</option>
@@ -530,7 +598,7 @@ onBeforeUnmount(() => {
         <div class="section-head"><div><div class="eyebrow">YOUR TRAINING RECORD</div><h1>History</h1><p>Your completed sessions, with setup and progression in context.</p></div><button class="ghost" @click="tab='progress'">Weekly muscle sets →</button></div>
         <div class="history-list">
           <article v-for="w in [...store.state.history].sort((a,b)=>b.date.localeCompare(a.date))" :key="w.id" class="history-card" :class="{skipped:w.status==='skipped'}">
-            <div><strong>{{ w.name }}</strong><span>{{ w.date }}</span></div>
+            <div><strong>{{ w.name }}</strong><span>{{ w.date }}{{ w.kind==='freeform'?' · Freeform':'' }}</span></div>
             <div>{{ w.status === 'skipped' ? 'Skipped' : w.exercises.reduce((n,e)=>n+e.sets.filter(s=>s.done&&!s.warmup&&!s.skipped).length,0) + ' work sets' }}</div>
             <details v-if="w.status!=='skipped' && w.exercises.length" class="history-exercise-details"><summary>Exercises & progression</summary><div v-for="e in w.exercises" :key="e.id"><h3>{{ e.name }}</h3><ExerciseContext :exercise="e" :workout="w" historical /></div></details>
             <div class="row-actions">
@@ -606,6 +674,8 @@ onBeforeUnmount(() => {
           <div class="eyebrow">{{ isViewingCompleted ? 'YOUR FINISHED SESSION' : 'YOUR WORKOUT' }}</div>
           <h2>Session overview</h2>
           <p>{{ formatDate(activeWorkout.date,{weekday:'short',month:'short',day:'numeric',year:'numeric'}) }} · {{ activeWorkout.exercises.length }} exercises · {{ sessionProgress.completed }} working sets completed. {{ isViewingCompleted ? 'Browse your results below.' : 'Choose an exercise to start logging.' }}</p>
+          <div v-if="!activeWorkout.exercises.length" class="freeform-empty-state"><h3>Your session is empty</h3><p>Add a movement and log your sets as you go. Bodyweight exercises need zero added weight.</p></div>
+          <button v-if="!isViewingCompleted" type="button" class="ghost session-add-trigger" @click="openExercisePicker">+ Add or create exercise</button>
           <div class="overview-exercise-list">
             <button v-for="(ex,i) in activeWorkout.exercises" :key="ex.id" type="button" @click="chooseExercise(i)" :aria-label="'View '+ex.name">
               <span class="overview-index">{{ String(i+1).padStart(2,'0') }}</span>
@@ -613,6 +683,26 @@ onBeforeUnmount(() => {
               <span class="overview-progress">{{ ex.sets.filter(s=>s.done&&!s.warmup&&!s.skipped).length }} / {{ ex.sets.filter(s=>!s.warmup).length }}</span>
               <span class="overview-chevron" aria-hidden="true">→</span>
             </button>
+          </div>
+        </section>
+        <section v-if="exercisePickerOpen && !isViewingCompleted" class="session-exercise-picker" aria-label="Add exercise to workout">
+          <div class="session-exercise-picker-head"><h3>Add an exercise</h3><button type="button" class="text-btn" @click="exercisePickerOpen=false">Close</button></div>
+          <label>Search your exercise library<input v-model="exerciseSearch" type="search" placeholder="Search exercises…" autocomplete="off" /></label>
+          <div class="session-exercise-results">
+            <button v-for="exercise in availableSessionExercises" :key="exercise.id" type="button" @click="addExerciseToDraft(exercise.id)">
+              <strong>+ {{ exercise.name }}</strong><small>{{ exercise.equipment || 'Equipment not set' }}</small>
+            </button>
+            <p v-if="!availableSessionExercises.length" class="muted">No matching unused exercises.</p>
+          </div>
+          <button v-if="!quickCreatingExercise" type="button" class="text-btn session-create-trigger" @click="quickCreatingExercise=true;quickExerciseName=exerciseSearch">+ Create a new exercise</button>
+          <div v-else class="session-quick-create">
+            <label>Exercise name<input v-model="quickExerciseName" placeholder="e.g. Hindu push-up" @keyup.enter="createQuickExercise" /></label>
+            <div class="session-quick-create-fields">
+              <label>Equipment<select v-model="quickEquipment"><option v-for="item in equipmentOptions" :key="item" :value="item">{{ item }}</option></select></label>
+              <label>Primary muscle · optional<select v-model="quickMuscle"><option value="">Choose later</option><option v-for="muscle in muscles" :key="muscle" :value="muscle">{{ muscle }}</option></select></label>
+            </div>
+            <p class="muted">Saved to your library for future workouts. Edit muscle credits in the Exercise Library anytime.</p>
+            <button type="button" class="primary" :disabled="!quickExerciseName.trim()" @click="createQuickExercise">Create & add to workout</button>
           </div>
         </section>
         <article v-for="(ex,ei) in activeWorkout.exercises" :key="ex.id" class="log-exercise" v-show="currentExercise!==-1" :class="{'mobile-active':currentExercise===ei}">
@@ -623,7 +713,7 @@ onBeforeUnmount(() => {
             </div>
           <details class="exercise-tools"><summary>Exercise options</summary>
               <div class="session-setup"><div class="eyebrow">TODAY’S SETUP</div><div class="session-variation"><label>Equipment<input v-model="ex.equipment" :disabled="isViewingCompleted" list="workout-equipment" placeholder="Choose equipment" /></label><label>Variation<input v-model="ex.variation" :disabled="isViewingCompleted" placeholder="Grip, bench angle…" /></label></div><label>Substituted for · optional<input v-model="ex.substitutedFrom" :disabled="isViewingCompleted" placeholder="Original movement" /></label><label>Exercise notes<textarea v-model="ex.notes" :disabled="isViewingCompleted" rows="2" placeholder="Setup, tempo, how it felt…" /></label></div>
-            <div class="exercise-actions"><button v-if="!isViewingCompleted && ex.sets.some(s=>!s.done&&!s.skipped&&!s.warmup)" class="text-btn muted" @click="skipExercise(ei)">Skip remaining sets</button></div>
+            <div v-if="!isViewingCompleted" class="exercise-actions"><button v-if="ex.sets.some(s=>!s.done&&!s.skipped&&!s.warmup)" class="text-btn muted" @click="skipExercise(ei)">Skip remaining sets</button><button type="button" class="text-btn muted" @click="removeDraftExercise(ei)">Remove from session</button></div>
           </details>
           </div>
           <ExerciseContext :exercise="ex" :workout="activeWorkout" :historical="isViewingCompleted" />
@@ -651,9 +741,7 @@ onBeforeUnmount(() => {
           <button v-if="!isViewingCompleted" class="text-btn add-working-row" @click="addSet(ei)">+ Add working set</button>
         </article>
 
-        <details v-if="!isViewingCompleted" class="session-extras"><summary>Session options</summary><label class="session-date-field">Workout date<input v-model="activeWorkout.date" type="date" aria-label="Workout date" /></label><select class="full-select" aria-label="Add exercise to workout" @change="addExerciseToDraft(($event.target as HTMLSelectElement).value); ($event.target as HTMLSelectElement).value=''">
-          <option value="">+ Add exercise to workout</option><option v-for="e in store.state.library.filter(e=>!activeWorkout!.exercises.some(x=>x.exerciseId===e.id))" :key="e.id" :value="e.id">{{ e.name }}</option>
-        </select>
+        <details v-if="!isViewingCompleted" class="session-extras"><summary>Session options</summary><label class="session-date-field">Workout date<input v-model="activeWorkout.date" type="date" aria-label="Workout date" /></label><button type="button" class="ghost session-add-trigger" @click="openExercisePicker">+ Add or create exercise</button>
         <textarea aria-label="Workout notes" v-model="activeWorkout.notes" placeholder="Workout notes" rows="2"></textarea>
         <button type="button" class="text-btn session-skip-action" @click="skipWorkoutFromOptions">Skip workout</button>
         </details>

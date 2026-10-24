@@ -70,3 +70,25 @@ test('ending a partially performed draft preserves logged work and skips only re
  assert.equal(s.history[0].exercises[0].sets[1].rir,null)
  assert.equal(s.history[0].exercises[0].sets[2].skipped,undefined)
 })
+
+test('freeform draft keeps its own identity and does not consume the scheduled session',()=>{
+ const s=state()
+ const free={...workout('free','2026-10-13','Freeform workout'),kind:'freeform'}
+ activateWorkoutDraft(s,free)
+ assert.equal(findWorkoutDraft(s,'2026-10-13',{id:'push',name:'Push'}),undefined)
+ assert.equal(findWorkoutDraft(s,'2026-10-13'),undefined)
+ const entries=dayEntries(s,'2026-10-13').filter(e=>e.kind==='workout')
+ assert.ok(entries.some(e=>e.status==='planned'&&e.title==='Push workout'))
+ assert.ok(entries.some(e=>e.status==='draft'&&e.workout.id==='free'))
+ activateWorkoutDraft(s,workout('planned','2026-10-13','Push','push'))
+ assert.equal(s.pausedDrafts[0].kind,'freeform')
+ assert.equal(findWorkoutDraft(s,'2026-10-13',{id:'push',name:'Push'}).id,'planned')
+})
+test('saved freeform and planned session can coexist on a date',()=>{
+ const s=state();s.draft=null
+ s.history=[{...workout('free','2026-10-13','Freeform workout'),kind:'freeform',status:'completed'}]
+ const entries=dayEntries(s,'2026-10-13').filter(e=>e.kind==='workout')
+ assert.equal(entries.length,2)
+ assert.ok(entries.some(e=>e.status==='planned'&&e.title==='Push workout'))
+ assert.ok(entries.some(e=>e.workout?.id==='free'&&e.status==='completed'))
+})

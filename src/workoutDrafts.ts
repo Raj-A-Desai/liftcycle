@@ -14,7 +14,7 @@ export function workoutDrafts(state: LiftCycleState): Workout[] {
 
 export function findWorkoutDraft(state: LiftCycleState, date: string, split?: Split | null) {
   return workoutDrafts(state).find(w => w.date === date &&
-    (split ? (w.splitId ? w.splitId === split.id : w.name === split.name) : !w.splitId))
+    (w.kind !== 'freeform' && (split ? (w.splitId ? w.splitId === split.id : w.name === split.name) : !w.splitId)))
 }
 
 // Switching the logger never completes or discards the session being left.

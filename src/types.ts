@@ -48,6 +48,7 @@ export interface Workout {
   notes: string
   unit: string
   status?: 'completed' | 'skipped'
+  kind?: 'freeform'
   cycleId?: string
   cycleName?: string
   splitId?: string

@@ -6,14 +6,14 @@ import { dateKey, formatDate, shiftDay } from '../rhythm'
 import { cycleOn, weekSignals } from '../planning'
 import { actualExerciseSummary } from '../workoutSummary'
 import { exerciseTrend } from '../workoutIntelligence'
-const emit=defineEmits<{workout:[date:string,id?:string];manage:[];schedule:[];history:[]}>()
+const emit=defineEmits<{workout:[date:string,id?:string];manage:[];schedule:[];history:[];freeform:[]}>()
 const store=useLiftStore(),today=dateKey()
 const drafts=computed(()=>workoutDrafts(store.state))
 const olderDrafts=computed(()=>drafts.value.filter(w=>w.date<today))
 const next=computed(()=>{
-  const draft=drafts.value.find(w=>w.date===today)
+  const draft=drafts.value.find(w=>w.date===today && w.kind!=='freeform')
   if(draft)return {date:draft.date,name:draft.name,id:draft.id,resume:true}
-  for(let n=0;n<28;n++){const date=shiftDay(today,n),split=store.scheduledSplitForDate(date);if(split&&!store.state.history.some(w=>w.date===date)){const draft=drafts.value.find(w=>w.date===date);return {date,name:draft?.name ?? split.name,id:draft?.id,resume:Boolean(draft)}}}
+  for(let n=0;n<28;n++){const date=shiftDay(today,n),split=store.scheduledSplitForDate(date);if(split&&!store.state.history.some(w=>w.date===date&&w.kind!=='freeform')){const draft=drafts.value.find(w=>w.date===date&&w.kind!=='freeform');return {date,name:draft?.name ?? split.name,id:draft?.id,resume:Boolean(draft)}}}
   return null
 })
 const week=computed(()=>weekSignals(store.state,today))
@@ -31,6 +31,7 @@ function workSets(w:NonNullable<typeof recent.value>){return w.exercises.flatMap
   <div class="train-layout"><div class="train-primary">
     <section v-if="next" class="attention-area training-attention"><div class="eyebrow">{{ next.resume?'IN PROGRESS':next.date===today?'TODAY':'UP NEXT' }}</div><h2>{{ next.name }}</h2><p>{{ formatDate(next.date,{weekday:'long',month:'short',day:'numeric'}) }}<template v-if="cycle"> · Week {{ cycleWeek }} of {{ cycle.weeks }}</template></p><button class="primary" @click="emit('workout',next.date,next.id)">{{ next.resume?'Resume workout':'Start workout' }}</button></section>
     <section v-else class="attention-area"><div class="eyebrow">YOUR TRAINING</div><h2>{{ cycle?'Room to recover':'Choose your next session' }}</h2><p>{{ cycle?'No upcoming session in your current cycle.':'Set up your program to see the next workout here.' }}</p><button class="primary" @click="emit('manage')">{{ cycle?'Review program':'Set up program' }}</button></section>
+    <section class="quiet-section freeform-invitation"><div class="eyebrow">TRAIN ON YOUR TERMS</div><h2>Freeform workout</h2><p>No program or equipment required. Start empty, add movements along the way, and keep your cycle intact.</p><button class="ghost" @click="emit('freeform')">+ Start freeform workout</button></section>
     <section v-if="lastSame" class="quiet-section last-workout"><div class="eyebrow">LAST {{ lastSame.name.toUpperCase() }}</div><h2>{{ formatDate(lastSame.date,{weekday:'short',month:'short',day:'numeric'}) }}</h2><p>{{ lastSame.exercises.length }} exercises · {{ workSets(lastSame) }} working sets completed</p><details><summary>See last session</summary><div v-for="e in lastSame.exercises" :key="e.id" class="training-history-row"><strong>{{ e.name }}</strong><span>{{ actualExerciseSummary(e,lastSame.unit).work }}</span></div><button class="text-btn" @click="emit('workout',lastSame.date,lastSame.id)">View session →</button></details></section>
     <section v-if="recent && recent.id!==lastSame?.id" class="quiet-section"><div class="eyebrow">RECENT SESSION</div><h2>{{ recent.name }}</h2><p>{{ formatDate(recent.date,{month:'short',day:'numeric'}) }} · {{ workSets(recent) }} working sets</p><button class="text-btn" @click="emit('workout',recent.date,recent.id)">View session →</button></section>
   </div><aside class="train-context">

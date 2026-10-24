@@ -317,7 +317,9 @@ export const useLiftStore = defineStore('liftcycle', () => {
   }, { deep: true, flush: 'sync' })
 
   function addExercise(ex: Omit<Exercise,'id'|'increment'|'defaultLoad'|'targetSets'>) {
-    state.value.library.push({ ...ex, id: uuid(), increment: 0, defaultLoad: 0, targetSets: 0 })
+    const created: Exercise = { ...ex, id: uuid(), increment: 0, defaultLoad: 0, targetSets: 0 }
+    state.value.library.push(created)
+    return created
   }
 
   function updateExercise(id: string, patch: Partial<Exercise>) {
@@ -409,6 +411,18 @@ export const useLiftStore = defineStore('liftcycle', () => {
         logged.sets = sessionSets(state.value.history, logged, state.value.unit, date, item.sets || 2, sug?.load ?? item.load ?? 0, sug?.reps ?? item.reps ?? ex.repMin)
         return logged
       })
+    }
+    return activateWorkoutDraft(state.value, workout)
+  }
+
+  // Freeform workouts are independent of cycle and scheduled sessions.
+  function startFreeformWorkout(date: string) {
+    const existing = [state.value.draft, ...(state.value.pausedDrafts ?? [])]
+      .find(w => w?.date === date && w.kind === 'freeform')
+    if (existing) return activateWorkoutDraft(state.value, existing)
+    const workout: Workout = {
+      id: uuid(), date, kind: 'freeform', name: 'Freeform workout',
+      notes: '', unit: state.value.unit, exercises: []
     }
     return activateWorkoutDraft(state.value, workout)
   }
@@ -528,6 +542,6 @@ export const useLiftStore = defineStore('liftcycle', () => {
   }
 
   return { state, hydrated, userId, userEmail, syncStatus, syncError, activeCycle, hydrateLocal, setSession, pullCloudOrSeed, pushCloud, useThisDevice, updateActiveCycle,
-    addExercise, updateExercise, deleteExercise, addPlanItem, applyCycle, scheduledSplitForDate, suggestion, startWorkout, skipWorkoutDraft, skipScheduledWorkout, resumeSkippedWorkout, saveDraft, editWorkout, deleteWorkout,
+    addExercise, updateExercise, deleteExercise, addPlanItem, applyCycle, scheduledSplitForDate, suggestion, startWorkout, startFreeformWorkout, skipWorkoutDraft, skipScheduledWorkout, resumeSkippedWorkout, saveDraft, editWorkout, deleteWorkout,
     muscleTotalsForWeek, saveReview, importState, exportState, signIn, signInWithPassword, setPassword, signOut }
 })

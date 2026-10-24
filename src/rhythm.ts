@@ -154,13 +154,16 @@ export function workoutEntries(key: string, split: {name: string} | null, histor
   const records = history.filter(w=>w.date === key)
   const at = weekday(key) === 6 ? 9 : 19
   const entries = records.map(w=>({ id:`workout-${w.id}`,title:`${w.name} workout`,detail:w.status === 'skipped' ? 'Skipped' : 'Completed · saved in Training',at,endAt:at+1,kind:'workout' as const,workout:w,status:w.status === 'skipped' ? 'skipped' as const : 'completed' as const }))
+  const scheduledRecorded = records.some(w=>w.kind!=='freeform')
+  const planned = split && !scheduledRecorded && (!draft || draft.kind==='freeform')
+    ? [{id:`workout-${key}`,title:`${split.name} workout`,detail:'Planned in Training · 60-minute target',at,endAt:at+1,kind:'workout' as const,status:'planned' as const}]
+    : []
   if (draft?.date === key) {
     const saved = entries.findIndex(e=>e.workout.id === draft.id)
     if (saved >= 0) entries.splice(saved,1)
-    return [...entries,{id:`workout-${draft.id}`,title:`${draft.name} workout`,detail:'In progress · resume your session',at,endAt:at+1,kind:'workout',workout:draft,status:'draft'}]
+    return [...entries,...planned,{id:`workout-${draft.id}`,title:`${draft.name} workout`,detail:'In progress · resume your session',at,endAt:at+1,kind:'workout',workout:draft,status:'draft'}]
   }
-  if (!entries.length && split) return [{id:`workout-${key}`,title:`${split.name} workout`,detail:'Planned in Training · 60-minute target',at,endAt:at+1,kind:'workout',status:'planned'}]
-  return entries
+  return [...entries,...planned]
 }
 export function entriesFor(rhythm: RhythmState, key: string, workouts: TimelineEntry[]): TimelineEntry[] {
   let tasks = routineFor(rhythm,key)
