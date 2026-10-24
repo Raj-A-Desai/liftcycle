@@ -6,6 +6,7 @@ import RhythmView from './components/RhythmView.vue'
 import TodayView from './components/TodayView.vue'
 import GuideView from './components/GuideView.vue'
 import TrainingHome from './components/TrainingHome.vue'
+import TrainingBlocksReview from './components/TrainingBlocksReview.vue'
 import ExerciseContext from './components/ExerciseContext.vue'
 import SetReference from './components/SetReference.vue'
 import { freshSet, previousWarmups } from './sessionTemplate'
@@ -43,7 +44,7 @@ onBeforeUnmount(() => cleanupAtmosphere())
 watch(ambientEnabled, enabled => {
   try { localStorage.setItem('homebase-ambient-enabled', String(enabled)) } catch { /* Keep the control usable without storage. */ }
 })
-const tab = ref<'train'|'schedule'|'cycle'|'exercises'|'history'|'progress'>('train')
+const tab = ref<'train'|'blocks'|'schedule'|'cycle'|'exercises'|'history'|'progress'>('train')
 const section = ref<'today'|'rhythm'|'training'|'guide'>('today')
 const loggerOpen = ref(false)
 const viewedWorkoutId = ref<string | null>(null)
@@ -54,7 +55,7 @@ const isViewingCompleted = computed(() => viewedWorkoutId.value !== null)
 function readRoute() {
   const parts = window.location.hash.replace('#/','').split('/')
   section.value = ['rhythm','training','guide'].includes(parts[0] || '') ? parts[0] as typeof section.value : 'today'
-  if (['train','schedule','cycle','exercises','history','progress'].includes(parts[1] || '')) tab.value = parts[1] as typeof tab.value
+  if (['train','blocks','schedule','cycle','exercises','history','progress'].includes(parts[1] || '')) tab.value = parts[1] as typeof tab.value
   else if(section.value==='training')tab.value='train'
 }
 readRoute()
@@ -484,6 +485,7 @@ onBeforeUnmount(() => {
     <RhythmView v-if="section==='rhythm' && store.hydrated" v-model:selected-date="selectedDate" @workout="openFromRhythm" @training="section='training';tab='progress'" />
     <nav v-if="section==='training'" class="tabs training-navigation" aria-label="Training pages">
       <button :class="{active:tab==='train'}" :aria-current="tab==='train'?'page':undefined" @click="tab='train'">Train</button>
+      <button :class="{active:tab==='blocks'}" :aria-current="tab==='blocks'?'page':undefined" @click="tab='blocks'">Sets & circuits</button>
       <button :class="{active:tab==='history'||tab==='progress'}" :aria-current="tab==='history'||tab==='progress'?'page':undefined" @click="tab='history'">History</button>
       <button :class="{active:['cycle','schedule','exercises'].includes(tab)}" :aria-current="['cycle','schedule','exercises'].includes(tab)?'page':undefined" @click="tab='cycle'">Program</button>
     </nav>
@@ -491,6 +493,7 @@ onBeforeUnmount(() => {
 
     <main v-if="section==='training'">
       <TrainingHome v-if="tab==='train'" @workout="openFromRhythm" @manage="tab='cycle'" @schedule="tab='schedule'" @history="tab='history'" @freeform="startFreeformWorkout" />
+      <TrainingBlocksReview v-else-if="tab==='blocks'" />
       <section v-else-if="tab==='schedule'" class="page">
         <div class="section-head">
           <div>
