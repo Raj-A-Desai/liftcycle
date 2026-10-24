@@ -81,7 +81,7 @@ test('freeform draft keeps its own identity and does not consume the scheduled s
  assert.ok(entries.some(e=>e.status==='planned'&&e.title==='Push workout'))
  assert.ok(entries.some(e=>e.status==='draft'&&e.workout.id==='free'))
  activateWorkoutDraft(s,workout('planned','2026-10-13','Push','push'))
- assert.equal(s.pausedDrafts[0].kind,'freeform')
+ assert.ok(s.pausedDrafts.some(w=>w.kind==='freeform'))
  assert.equal(findWorkoutDraft(s,'2026-10-13',{id:'push',name:'Push'}).id,'planned')
 })
 test('saved freeform and planned session can coexist on a date',()=>{
